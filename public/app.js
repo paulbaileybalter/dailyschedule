@@ -29,7 +29,7 @@ function doRender() {
   if (liq) { const pct = S.pct || 0; liq.getBoundingClientRect(); liq.style.opacity = pct > 0 ? 1 : 0; liq.style.transform = `translateY(${liquidY(pct)}px)`; S.lastPct = pct; }
   document.querySelectorAll('header .tab').forEach((t) => t.setAttribute('aria-selected', t.dataset.view === S.view));
   $('#page').classList.toggle('wide', S.view === 'week');
-  document.title = (S.view === 'day' ? longDate(S.date) : S.view === 'week' ? 'Week' : 'History') + ' — Task Dashboard';
+  document.title = 'Task Dashboard - ' + { day: 'Day', week: 'Week', history: 'History' }[S.view];
   ensureData();
 }
 
@@ -426,7 +426,6 @@ async function loadWeather() {
 }
 
 /* ---------- start ---------- */
-$('#now').insertAdjacentHTML('afterbegin', legend());
 paintDate(); loadWeather(); setInterval(loadWeather, 15 * 60 * 1000); setInterval(paintDate, 60000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { paintDate(); loadWeather(); } });
 $('#settingsBtn').innerHTML = I.gear;

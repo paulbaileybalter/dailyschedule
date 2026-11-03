@@ -130,7 +130,7 @@ export function viewDay() {
     <div class="title"><h2>${longDate(date)}</h2>${isToday ? '<span class="tag">Today</span>' : `<button class="tag alt" data-act="today" style="border:0;cursor:pointer">Back to today</button>`}
       <button class="btn small ghost icon" data-act="pickdate" aria-label="Pick a date" style="width:30px;height:30px;vertical-align:middle">${I.cal}</button></div>
     <button class="nbtn" data-zone="${n}" data-act="goto" data-date="${n}" aria-label="Next day"><span>${shortDate(n)}</span>${I.right}</button></div>
-  <div style="display:flex;justify-content:flex-end;margin-bottom:12px">${searchBar(date, [date])}</div>
+  <div style="display:flex;justify-content:flex-end;align-items:center;gap:14px;margin-bottom:12px">${legend()}${searchBar(date, [date])}</div>
   <section class="card c-gold"><div class="bar"></div><div class="hero-body">${glass(pct, allDone)}
     <div class="hero-main"><div class="kicker">${isToday ? 'On tap today' : 'On tap'}</div>
       <div class="counter"><span class="big">${st.done}<small>/${st.total}</small></span><span class="lbl">tasks done</span>
@@ -158,7 +158,7 @@ export function viewWeek() {
     <h2>${dm(ws)} – ${dm(addDays(ws, n - 1))} ${addDays(ws, 4).slice(0, 4)}</h2>
     <button class="btn ghost" data-act="week-step" data-n="7" aria-label="Next week">${I.right}</button>
     ${thisWk ? '' : '<button class="btn small" data-act="week-now">This week</button>'}
-    <span class="sp"></span>${searchBar(ws, days)}<span class="count">${done} / ${total} done</span>
+    <span class="sp"></span>${legend()}${searchBar(ws, days)}<span class="count">${done} / ${total} done</span>
     <button class="btn small" data-act="export-week" title="Download this week as a spreadsheet (CSV)">Export CSV</button>
     <button class="btn small ghost" data-act="weekend" aria-pressed="${S.showWeekend}">${S.showWeekend ? 'Hide' : 'Show'} weekend</button>
     <button class="btn small ghost" data-act="hidedone">${S.hideDone ? 'Show completed' : 'Hide completed'}</button></div>
