@@ -29,7 +29,7 @@ function doRender() {
   if (liq) { const pct = S.pct || 0; liq.getBoundingClientRect(); liq.style.opacity = pct > 0 ? 1 : 0; liq.style.transform = `translateY(${liquidY(pct)}px)`; S.lastPct = pct; }
   document.querySelectorAll('header .tab').forEach((t) => t.setAttribute('aria-selected', t.dataset.view === S.view));
   $('#page').classList.toggle('wide', S.view === 'week');
-  document.title = (S.view === 'day' ? longDate(S.date) : S.view === 'week' ? 'Week' : 'History') + ' — Paul’s Dashboard';
+  document.title = (S.view === 'day' ? longDate(S.date) : S.view === 'week' ? 'Week' : 'History') + ' — Task Dashboard';
   ensureData();
 }
 
@@ -357,7 +357,7 @@ document.addEventListener('pointercancel', (e) => endDrag(true, e));
 /* ---------- date + weather (Open-Meteo, no key needed) — Varsity Lakes, Gold Coast ---------- */
 const WX = { 0: ['☀️', 'Clear'], 1: ['🌤️', 'Mostly clear'], 2: ['⛅', 'Partly cloudy'], 3: ['☁️', 'Cloudy'], 45: ['🌫️', 'Fog'], 48: ['🌫️', 'Fog'], 51: ['🌦️', 'Light drizzle'], 53: ['🌦️', 'Drizzle'], 55: ['🌧️', 'Drizzle'], 61: ['🌦️', 'Light rain'], 63: ['🌧️', 'Rain'], 65: ['🌧️', 'Heavy rain'], 80: ['🌦️', 'Showers'], 81: ['🌧️', 'Showers'], 82: ['⛈️', 'Heavy showers'], 95: ['⛈️', 'Thunderstorm'], 96: ['⛈️', 'Thunderstorm'], 99: ['⛈️', 'Thunderstorm'] };
 const wxInfo = (c) => WX[c] || (c >= 71 && c <= 77 ? ['🌨️', 'Snow'] : c >= 56 && c <= 67 ? ['🌧️', 'Rain'] : c >= 80 ? ['🌧️', 'Showers'] : ['🌡️', '']);
-function paintDate() { $('#nowDate').textContent = new Date().toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' }); }
+function paintDate() {}
 function paintWeather(w) {
   const el = $('#wx'); if (!w) return;
   const [icon, label] = wxInfo(w.code);

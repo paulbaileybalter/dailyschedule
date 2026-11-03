@@ -1,6 +1,6 @@
 {
-  "name": "Balter Brewing — Paul's Dashboard",
-  "short_name": "Dashboard",
+  "name": "Balter Brewing — Task Dashboard",
+  "short_name": "Tasks",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

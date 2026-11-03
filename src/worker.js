@@ -121,7 +121,7 @@ button:focus-visible,input:focus-visible{outline:2px solid #7566A0;outline-offse
   <div class="in">
     <svg class="logo" viewBox="0 0 161 161" aria-hidden="true"><path fill="#47D7AC" d="${smile}"/><path fill="#47D7AC" d="${box}"/></svg>
     <div class="kicker">Balter Brewing</div>
-    <h1>Paul’s Dashboard</h1>
+    <h1>Task Dashboard</h1>
     <p>Enter the password to continue.</p>
     ${error ? `<div class="err" role="alert">${error}</div>` : ''}
     <label for="pw">Password</label>
