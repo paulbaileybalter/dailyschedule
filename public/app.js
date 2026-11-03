@@ -1,0 +1,358 @@
+// Rendering loop, events, menus, drag & drop, dialogs. State lives in core.js, markup in views.js.
+import { CATS, parseTime } from '/ops.js';
+import { S, hooks, esc, uid, todayISO, shortDate, longDate, nextWD, prevWD, addDays, mondayOf, dowOf, isWeekend, dayOf, findTask, dayStats, catOf,
+  api, dispatch, upd, addTask, moveTask, deleteTask, ensureData, ensureWeek, loadConfig, saveConfigSoon, flush, startPolling, setStatus, touch, carryList, ls, scheduleFlush } from '/core.js';
+import { viewDay, viewWeek, viewHistory, liquidY, I } from '/views.js';
+
+const $ = (s, r = document) => r.querySelector(s);
+const app = $('#app');
+let rendering = false, rq = false;
+
+/* ---------- render ---------- */
+hooks.render = () => { if (rq) return; rq = true; requestAnimationFrame(() => { rq = false; doRender(); }); };
+function doRender() {
+  if (S.dragging) { S.renderLater = true; return; }
+  const keep = [...app.querySelectorAll('[data-keep]')].map((e) => ({ k: e.dataset.keep, v: e.value, s: e.selectionStart, e: e.selectionEnd, f: e === document.activeElement }));
+  const y = window.scrollY, sx = $('.weekgrid') ? $('.weekgrid').scrollLeft : 0;
+  rendering = true;
+  app.innerHTML = S.view === 'day' ? viewDay() : S.view === 'week' ? viewWeek() : viewHistory();
+  rendering = false;
+  for (const k of keep) {
+    const el = app.querySelector(`[data-keep="${k.k}"]`); if (!el) continue;
+    el.value = k.v;
+    if (k.f) { el.focus(); try { el.setSelectionRange(k.s, k.e); } catch (e) {} }
+  }
+  window.scrollTo(0, y); if ($('.weekgrid')) $('.weekgrid').scrollLeft = sx;
+  if (S.editing) { const el = $('#edit'); if (el && document.activeElement !== el) { el.focus(); el.select(); } }
+  if (S.noteEdit) { const el = $('#nedit'); if (el && document.activeElement !== el) el.focus(); }
+  const liq = $('#liquid');
+  if (liq) { const pct = S.pct || 0; liq.getBoundingClientRect(); liq.style.opacity = pct > 0 ? 1 : 0; liq.style.transform = `translateY(${liquidY(pct)}px)`; S.lastPct = pct; }
+  document.querySelectorAll('header .tab').forEach((t) => t.setAttribute('aria-selected', t.dataset.view === S.view));
+  $('#page').classList.toggle('wide', S.view === 'week');
+  document.title = (S.view === 'day' ? longDate(S.date) : S.view === 'week' ? 'Week' : 'History') + ' — Paul’s Daily Schedule';
+  ensureData();
+}
+
+/* ---------- toast, menu, date picker ---------- */
+let toastTimer = 0;
+hooks.toast = (msg, action, fn) => {
+  const t = $('#toast'); t.innerHTML = `<div class="toast"><span>${esc(msg)}</span>${action ? `<button>${esc(action)}</button>` : ''}</div>`;
+  if (action) t.querySelector('button').onclick = () => { t.innerHTML = ''; fn(); };
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.innerHTML = ''), action ? 7000 : 3500);
+};
+const toast = hooks.toast;
+
+const menuEl = $('#menu');
+function openMenu(anchor, items) {
+  menuEl.innerHTML = items.map((it, i) => it.sep ? '<hr>' : it.cats
+    ? `<div class="catrow">Colour ${Object.entries(CATS).map(([k, c]) => `<button class="catdot" style="--c:${c.color}" title="${c.name}" aria-pressed="${it.cur === k}" data-cat="${k}"></button>`).join('')}</div>`
+    : `<button class="${it.danger ? 'danger' : ''}" data-i="${i}">${esc(it.label)}</button>`).join('');
+  menuEl.hidden = false;
+  const r = anchor.getBoundingClientRect(), m = menuEl.getBoundingClientRect();
+  menuEl.style.left = Math.max(8, Math.min(r.right - m.width, innerWidth - m.width - 8)) + 'px';
+  menuEl.style.top = (r.bottom + m.height + 12 > innerHeight ? Math.max(8, r.top - m.height - 4) : r.bottom + 4) + 'px';
+  menuEl._items = items;
+}
+const closeMenu = () => { menuEl.hidden = true; };
+menuEl.addEventListener('click', (e) => {
+  const items = menuEl._items || []; const cat = e.target.closest('[data-cat]'); const b = e.target.closest('[data-i]');
+  if (cat) { const it = items.find((x) => x.cats); closeMenu(); it.fn(cat.dataset.cat); }
+  else if (b) { const it = items[+b.dataset.i]; closeMenu(); it.fn(); }
+});
+function pickDate(cb, start) {
+  const inp = document.createElement('input'); inp.type = 'date'; inp.value = start || todayISO();
+  Object.assign(inp.style, { position: 'fixed', left: '50%', top: '30%', opacity: 0, pointerEvents: 'none' });
+  document.body.appendChild(inp);
+  inp.addEventListener('change', () => { if (inp.value) cb(inp.value); inp.remove(); });
+  inp.addEventListener('blur', () => setTimeout(() => inp.remove(), 300));
+  try { inp.showPicker(); } catch (e) { inp.style.opacity = 1; inp.style.pointerEvents = 'auto'; inp.focus(); }
+}
+
+/* ---------- navigation ---------- */
+function setView(v) {
+  S.view = v; S.editing = S.noteEdit = null;
+  if (v === 'week') S.weekStart = mondayOf(S.date);
+  if (v === 'history') { Object.assign(S.history, { weeks: [], oldest: null, exhausted: false, all: null, query: '' }); loadHistory(); }
+  hooks.render(); window.scrollTo(0, 0);
+}
+const goDay = (d) => { S.date = d; S.view = 'day'; S.editing = S.noteEdit = null; hooks.render(); window.scrollTo(0, 0); };
+
+async function loadHistory() {
+  const h = S.history; if (h.loading) return;
+  h.loading = true; hooks.render();
+  const to = h.oldest ? addDays(h.oldest, -7) : mondayOf(todayISO());
+  const r = await api(`/api/weeks?to=${to}&n=8`); h.loading = false;
+  if (r.ok) {
+    h.weeks.push(...r.data.weeks); h.oldest = r.data.weeks[7].start;
+    if (r.data.weeks.every((x) => !Object.values(x.doc.days).some((d) => d.tasks.length))) h.exhausted = true;
+  }
+  hooks.render();
+}
+async function loadSearchPool() {
+  const h = S.history; if (h.all || h.allLoading) return;
+  h.allLoading = true; hooks.render();
+  const r = await api(`/api/weeks?to=${mondayOf(todayISO())}&n=40`); h.allLoading = false;
+  if (r.ok) h.all = r.data.weeks;
+  hooks.render();
+}
+
+/* ---------- menus for tasks / days / projects ---------- */
+function taskMenu(btn) {
+  const row = btn.closest('.row'), id = row.dataset.id, date = row.dataset.date, t = findTask(date, id); if (!t) return;
+  const nwd = nextWD(date), today = todayISO();
+  openMenu(btn, [
+    { label: 'Edit text or time', fn: () => { S.editing = { id, date }; hooks.render(); } },
+    { label: t.note ? 'Edit note' : 'Add a note', fn: () => { S.noteEdit = { id, date }; hooks.render(); } },
+    t.skip ? { label: 'Restore — needed after all', fn: () => upd(date, id, { skip: false }) } : { label: 'Not needed today', fn: () => upd(date, id, { skip: true }) },
+    { sep: true },
+    date !== today && { label: 'Move to today', fn: () => doMove(id, date, today) },
+    { label: `Move to ${shortDate(nwd)}`, fn: () => doMove(id, date, nwd) },
+    { label: 'Move to another date…', fn: () => pickDate((d) => doMove(id, date, d), date) },
+    { label: `Copy to ${shortDate(nwd)}`, fn: () => { addTask(nwd, { text: t.text, time: t.time, cat: t.cat, note: t.note }); toast(`Copied to ${shortDate(nwd)}`); } },
+    { sep: true },
+    { cats: true, cur: catOf(t), fn: (c) => upd(date, id, { cat: c }) },
+    { sep: true },
+    { label: 'Delete task', danger: true, fn: () => deleteTask(date, id) },
+  ].filter(Boolean));
+}
+function doMove(id, from, to, opts) {
+  const idx = dayOf(from).tasks.findIndex((t) => t.id === id);
+  moveTask(id, from, to, opts);
+  if (from !== to) toast(`Moved to ${shortDate(to)}`, 'Undo', () => moveTask(id, to, from, { index: idx }));
+}
+function dayMenu(btn) {
+  const date = S.date, nwd = nextWD(date);
+  openMenu(btn, [
+    { label: 'Add routine tasks that are missing', fn: () => dispatch(date, { op: 'seed', date, addMissing: true }) },
+    { label: 'Sort timed tasks into time order', fn: () => {
+      const tasks = dayOf(date).tasks, slots = tasks.map((t, i) => (t.time ? i : -1)).filter((i) => i >= 0);
+      const sorted = slots.map((i) => tasks[i]).sort((a, b) => a.time.localeCompare(b.time)); const out = tasks.slice();
+      slots.forEach((i, k) => (out[i] = sorted[k]));
+      dispatch(date, { op: 'order', date, ids: out.map((t) => t.id) });
+    } },
+    { label: `Push unfinished one-off tasks to ${shortDate(nwd)}`, fn: () => {
+      const l = dayOf(date).tasks.filter((t) => !t.done && !t.skip && (!t.src || t.src.startsWith('p:')));
+      if (!l.length) return toast('No unfinished one-off tasks');
+      l.forEach((t) => moveTask(t.id, date, nwd)); toast(`Moved ${l.length} task${l.length > 1 ? 's' : ''} to ${shortDate(nwd)}`);
+    } },
+    { sep: true },
+    { label: 'Print this day', fn: () => window.print() },
+  ]);
+}
+function projMenu(btn) {
+  const pid = btn.closest('.proj').dataset.pid, pr = S.config.projects.find((p) => p.id === pid);
+  openMenu(btn, [
+    { label: 'Rename', fn: () => { const v = prompt('Project name', pr.text); if (v && v.trim()) { pr.text = v.trim(); saveConfigSoon({ projects: S.config.projects }); } } },
+    { label: 'Delete project', danger: true, fn: () => { S.config.projects = S.config.projects.filter((p) => p.id !== pid); saveConfigSoon({ projects: S.config.projects }); } },
+  ]);
+}
+function settingsMenu(btn) {
+  openMenu(btn, [
+    { label: 'Edit weekly routine…', fn: openRoutine },
+    { label: 'Change password…', fn: openPassword },
+    !S.config.imported && { label: 'Import spreadsheet history…', fn: importHistory },
+    { label: 'Print', fn: () => window.print() },
+    { sep: true },
+    { label: 'Sign out', fn: () => (location.href = '/logout') },
+  ].filter(Boolean));
+}
+
+/* ---------- import ---------- */
+async function importHistory() {
+  const src = await fetch('/data/history.json').then((r) => r.json()).catch(() => null);
+  if (!src) return toast('Couldn’t load the history file');
+  const keys = Object.keys(src.weeks); let w = 0;
+  for (let i = 0; i < keys.length; i += 4) {
+    const part = {}; keys.slice(i, i + 4).forEach((k) => (part[k] = src.weeks[k]));
+    toast(`Importing… ${Math.min(i + 4, keys.length)} of ${keys.length} weeks`);
+    const r = await api('/api/import', { method: 'POST', body: { weeks: part, final: i + 4 >= keys.length } });
+    if (!r.ok) return toast('Import stopped — please try again');
+    w += r.data.written;
+  }
+  S.weeks = {}; S.config.imported = true; touch(); S.history.weeks = []; hooks.render();
+  toast(`Imported ${w} weeks of history`);
+}
+
+/* ---------- dialogs ---------- */
+const modalEl = $('#modal');
+const closeModal = () => { modalEl.innerHTML = ''; S.modal = null; };
+function openRoutine() { S.modal = { type: 'routine', day: Math.min(Math.max(dowOf(S.date), 1), 5), draft: structuredClone(S.config.routine) }; renderModal(); }
+const DN = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+function renderModal() {
+  const m = S.modal; if (!m) return;
+  if (m.type === 'routine') {
+    const items = m.draft[m.day] || (m.draft[m.day] = []);
+    modalEl.innerHTML = `<div class="modal-back" data-act="modal-bg"><div class="modal" role="dialog" aria-modal="true" aria-label="Weekly routine">
+      <div class="mhead"><div><div class="kicker">Weekly routine</div><h3>What lands on each day automatically</h3></div><span class="sp"></span><button class="btn ghost icon" data-act="modal-close" aria-label="Close">✕</button></div>
+      <p class="mhint">These are added to a day the first time you open it. Changing the routine never alters days that already exist.</p>
+      <nav class="tabs small">${[1, 2, 3, 4, 5].map((d) => `<button class="tab" data-act="r-day" data-d="${d}" aria-selected="${d === m.day}">${DN[d].slice(0, 3)}</button>`).join('')}</nav>
+      <ul class="rlist">${items.map((it, i) => `<li class="rrow" data-i="${i}"><span class="num">${i + 1}</span><input class="rt" data-f="text" value="${esc(it.text)}" maxlength="300" aria-label="Task"><input class="rtime" type="time" data-f="time" value="${it.time || ''}" aria-label="Time (optional)"><button data-act="r-up" aria-label="Move up">↑</button><button data-act="r-down" aria-label="Move down">↓</button><button data-act="r-del" aria-label="Remove">✕</button></li>`).join('')}</ul>
+      <div class="radd"><input id="radd" data-ra placeholder="Add a ${DN[m.day]} task…" maxlength="300"><button class="btn" data-act="r-add">Add</button></div>
+      <div class="mfoot"><span class="sp"></span><button class="btn ghost" data-act="modal-close">Cancel</button><button class="btn primary" data-act="r-save">Save routine</button></div></div></div>`;
+  } else if (m.type === 'password') {
+    modalEl.innerHTML = `<div class="modal-back" data-act="modal-bg"><form class="modal" id="pwform" style="width:min(420px,100%)"><div class="mhead"><div><div class="kicker">Security</div><h3>Change password</h3></div><span class="sp"></span><button type="button" class="btn ghost icon" data-act="modal-close" aria-label="Close">✕</button></div>
+      <label class="field"><span>Current password</span><input type="password" name="cur" autocomplete="current-password" required></label>
+      <label class="field"><span>New password (8+ characters)</span><input type="password" name="next" autocomplete="new-password" minlength="8" required></label>
+      <label class="field"><span>Repeat new password</span><input type="password" name="again" autocomplete="new-password" minlength="8" required></label>
+      ${m.error ? `<div class="err">${esc(m.error)}</div>` : ''}<div class="mfoot"><span class="sp"></span><button type="button" class="btn ghost" data-act="modal-close">Cancel</button><button class="btn primary">Change password</button></div></form></div>`;
+  }
+}
+function openPassword() { S.modal = { type: 'password' }; renderModal(); }
+modalEl.addEventListener('input', (e) => {
+  const m = S.modal; if (!m || m.type !== 'routine') return;
+  const row = e.target.closest('.rrow'); if (!row || !e.target.dataset.f) return;
+  const it = m.draft[m.day][+row.dataset.i]; const v = e.target.value;
+  if (e.target.dataset.f === 'time') { if (v) it.time = v; else delete it.time; } else it.text = v;
+});
+modalEl.addEventListener('submit', async (e) => {
+  e.preventDefault(); const f = e.target; const m = S.modal;
+  if (f.next.value !== f.again.value) { m.error = 'The new passwords don’t match.'; return renderModal(); }
+  const r = await api('/api/password', { method: 'POST', body: { current: f.cur.value, next: f.next.value } });
+  if (r.ok) { closeModal(); toast('Password changed — other devices are signed out'); } else { m.error = (r.data && r.data.error) || 'Something went wrong.'; renderModal(); }
+});
+function routineAct(act, el) {
+  const m = S.modal, list = m.draft[m.day], row = el.closest('.rrow'), i = row ? +row.dataset.i : -1;
+  if (act === 'r-day') m.day = +el.dataset.d;
+  else if (act === 'r-up' && i > 0) [list[i - 1], list[i]] = [list[i], list[i - 1]];
+  else if (act === 'r-down' && i < list.length - 1) [list[i + 1], list[i]] = [list[i], list[i + 1]];
+  else if (act === 'r-del') list.splice(i, 1);
+  else if (act === 'r-add') { const inp = $('#radd'); const p = parseTime(inp.value); if (p.text) { const it = { id: 'x' + uid().slice(1, 9), text: p.text }; if (p.time) it.time = p.time; list.push(it); } }
+  else if (act === 'r-save') {
+    const clean = {}; for (const d of [1, 2, 3, 4, 5]) clean[d] = (m.draft[d] || []).filter((x) => x.text.trim());
+    S.config.routine = clean; saveConfigSoon({ routine: clean }); closeModal(); toast('Routine saved — it applies to days you open from now on'); return;
+  }
+  renderModal(); if (act === 'r-add') $('#radd').focus();
+}
+
+/* ---------- commit helpers ---------- */
+function commitEdit() {
+  const ed = S.editing, el = $('#edit'); if (!ed) return;
+  S.editing = null;
+  if (el) { const t = findTask(ed.date, ed.id); const p = parseTime(el.value); if (t && p.text && (p.text !== t.text || p.time !== t.time)) upd(ed.date, ed.id, { text: p.text, time: p.time }); }
+  hooks.render();
+}
+function commitNote() {
+  const ed = S.noteEdit, el = $('#nedit'); if (!ed) return; S.noteEdit = null;
+  if (el) { const t = findTask(ed.date, ed.id); if (t && el.value !== t.note) upd(ed.date, ed.id, { note: el.value.trim() }); }
+  hooks.render();
+}
+function quickAdd(date, input) {
+  const p = parseTime(input.value); if (!p.text) return;
+  input.value = ''; addTask(date, { text: p.text, time: p.time });
+  hooks.render();
+}
+let noteTimer = 0;
+
+/* ---------- click handling ---------- */
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#menu') && !e.target.closest('[data-act="menu"],[data-act="daymenu"],[data-act="proj-menu"],[data-act="settings"]')) closeMenu();
+  const el = e.target.closest('[data-act]'); if (!el) return;
+  const act = el.dataset.act, row = el.closest('.row');
+  if (act === 'modal-bg') { if (e.target === el) closeModal(); return; }
+  if (act === 'modal-close') return closeModal();
+  if (act.startsWith('r-')) return routineAct(act, el);
+  switch (act) {
+    case 'view': return setView(el.dataset.view);
+    case 'goto': return goDay(el.dataset.date);
+    case 'goto-day': return goDay(el.dataset.date);
+    case 'today': return goDay(todayISO());
+    case 'pickdate': return pickDate(goDay, S.date);
+    case 'toggle': { const t = findTask(row.dataset.date, row.dataset.id); return t && upd(row.dataset.date, t.id, { done: !t.done }); }
+    case 'edit': if (!S.editing) { S.editing = { id: row.dataset.id, date: row.dataset.date }; hooks.render(); } return;
+    case 'notedit': S.noteEdit = { id: row.dataset.id, date: row.dataset.date }; return hooks.render();
+    case 'menu': return taskMenu(el);
+    case 'daymenu': return dayMenu(el);
+    case 'settings': return settingsMenu(el);
+    case 'hidedone': S.hideDone = !S.hideDone; ls.set('pds.hideDone', S.hideDone ? '1' : '0'); return hooks.render();
+    case 'qa-add': { const inp = el.previousElementSibling; return quickAdd(el.dataset.date, inp); }
+    case 'week-step': S.weekStart = addDays(S.weekStart, +el.dataset.n); return hooks.render();
+    case 'week-now': S.weekStart = mondayOf(todayISO()); return hooks.render();
+    case 'weekend': S.showWeekend = !S.showWeekend; return hooks.render();
+    case 'open-week': S.weekStart = el.dataset.w; S.view = 'week'; S.date = el.dataset.w; hooks.render(); return window.scrollTo(0, 0);
+    case 'hist-more': return loadHistory();
+    case 'hist-filter': S.history.filter = el.dataset.f; return hooks.render();
+    case 'carry-one': doMove(el.dataset.id, el.dataset.date, todayISO()); return;
+    case 'carry-all': { const l = carryList() || []; l.forEach((x) => moveTask(x.t.id, x.date, todayISO())); return toast(`Brought ${l.length} task${l.length > 1 ? 's' : ''} to today`); }
+    case 'carry-dismiss': ls.set('pds.carry.' + todayISO(), '1'); return hooks.render();
+    case 'import': return importHistory();
+    case 'import-dismiss': S.importDismissed = true; ls.set('pds.importDismissed', '1'); return hooks.render();
+    case 'proj-done': { const pr = S.config.projects.find((p) => p.id === el.closest('.proj').dataset.pid); pr.done = !pr.done; return saveConfigSoon({ projects: S.config.projects }); }
+    case 'proj-today': { const pr = S.config.projects.find((p) => p.id === el.closest('.proj').dataset.pid); addTask(S.date, { text: pr.text, src: 'p:' + pr.id, cat: 'proj' }); return; }
+    case 'proj-menu': return projMenu(el);
+    case 'proj-add': { const inp = el.previousElementSibling; const v = inp.value.trim(); if (!v) return; inp.value = ''; S.config.projects.push({ id: 'p' + uid().slice(1, 9), text: v, done: false }); return saveConfigSoon({ projects: S.config.projects }); }
+  }
+});
+
+document.addEventListener('keydown', (e) => {
+  const t = e.target;
+  if (e.key === 'Escape') { closeMenu(); if (S.modal) closeModal(); if (S.editing) { S.editing = null; hooks.render(); } if (S.noteEdit) { S.noteEdit = null; hooks.render(); } return; }
+  if (e.key === 'Enter') {
+    if (t.id === 'edit') { e.preventDefault(); return commitEdit(); }
+    if (t.id === 'nedit') { e.preventDefault(); return commitNote(); }
+    if (t.dataset && t.dataset.qa) { e.preventDefault(); return quickAdd(t.dataset.qa, t); }
+    if (t.dataset && 'pa' in t.dataset) { e.preventDefault(); return t.nextElementSibling.click(); }
+    if (t.id === 'radd') { e.preventDefault(); return t.nextElementSibling.click(); }
+    if (t.classList && t.classList.contains('txt')) { S.editing = { id: t.closest('.row').dataset.id, date: t.closest('.row').dataset.date }; return hooks.render(); }
+  }
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || S.modal;
+  if (!typing && S.view === 'day') {
+    if (e.key === 'ArrowLeft') goDay(prevWD(S.date)); else if (e.key === 'ArrowRight') goDay(nextWD(S.date)); else if (e.key === 't') goDay(todayISO());
+  }
+});
+document.addEventListener('focusout', (e) => {
+  if (rendering) return;
+  if (e.target.id === 'edit') commitEdit();
+  else if (e.target.id === 'nedit') commitNote();
+  else if (e.target.dataset && e.target.dataset.dnote) { clearTimeout(noteTimer); saveDayNote(e.target); }
+});
+function saveDayNote(el) { const date = el.dataset.dnote; if (el.value !== dayOf(date).note) dispatch(date, { op: 'note', date, text: el.value }); }
+document.addEventListener('input', (e) => {
+  const t = e.target;
+  if (t.dataset && t.dataset.dnote) { clearTimeout(noteTimer); noteTimer = setTimeout(() => saveDayNote(t), 900); }
+  if (t.dataset && 'hsearch' in t.dataset) { S.history.query = t.value; if (t.value.trim().length >= 2) loadSearchPool(); clearTimeout(t._d); t._d = setTimeout(() => hooks.render(), 200); }
+});
+
+/* ---------- drag & drop (works with mouse and touch) ---------- */
+let drag = null;
+document.addEventListener('pointerdown', (e) => {
+  const grip = e.target.closest('.grip'); if (!grip || e.button > 0) return;
+  const row = grip.closest('.row'); if (!row) return;
+  e.preventDefault(); closeMenu();
+  const r = row.getBoundingClientRect(), ghost = row.cloneNode(true);
+  ghost.classList.add('ghost'); Object.assign(ghost.style, { position: 'fixed', left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', pointerEvents: 'none', zIndex: 200 });
+  document.body.appendChild(ghost); row.classList.add('dragging'); document.body.classList.add('is-dragging');
+  drag = { id: row.dataset.id, from: row.dataset.date, ghost, row, dx: e.clientX - r.left, dy: e.clientY - r.top, to: null, before: null };
+  S.dragging = true;
+});
+function clearMarks() { document.querySelectorAll('.drop-before,.drop-after,.drop-empty,.zone-hot').forEach((x) => x.classList.remove('drop-before', 'drop-after', 'drop-empty', 'zone-hot')); }
+document.addEventListener('pointermove', (e) => {
+  if (!drag) return;
+  drag.ghost.style.left = e.clientX - drag.dx + 'px'; drag.ghost.style.top = e.clientY - drag.dy + 'px';
+  if (e.clientY < 70) window.scrollBy(0, -14); else if (e.clientY > innerHeight - 70) window.scrollBy(0, 14);
+  clearMarks(); drag.to = null; drag.before = null;
+  const zone = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-zone]'); if (!zone) return;
+  drag.to = zone.dataset.zone;
+  const list = zone.classList.contains('list') ? zone : zone.closest('.col')?.querySelector('.list');
+  if (zone.classList.contains('list')) {
+    const rows = [...zone.querySelectorAll('.row:not(.dragging)')]; let k = rows.length;
+    for (let i = 0; i < rows.length; i++) { const b = rows[i].getBoundingClientRect(); if (e.clientY < b.top + b.height / 2) { k = i; break; } }
+    if (!rows.length) zone.classList.add('drop-empty');
+    else if (k < rows.length) { rows[k].classList.add('drop-before'); drag.before = rows[k].dataset.id; } else rows[rows.length - 1].classList.add('drop-after');
+  } else zone.classList.add('zone-hot');
+});
+function endDrag(cancel, e) {
+  if (!drag) return; const d = drag; drag = null;
+  d.ghost.remove(); d.row.classList.remove('dragging'); document.body.classList.remove('is-dragging'); clearMarks(); S.dragging = false;
+  if (!cancel && d.to) { if (d.to === d.from) moveTask(d.id, d.from, d.to, { beforeId: d.before }); else doMove(d.id, d.from, d.to, { beforeId: d.before }); }
+  hooks.render();
+}
+document.addEventListener('pointerup', (e) => endDrag(false, e));
+document.addEventListener('pointercancel', (e) => endDrag(true, e));
+
+/* ---------- start ---------- */
+$('#settingsBtn').innerHTML = I.gear;
+$('.bubbles').innerHTML = [...Array(10)].map((_, i) => `<span style="width:${10 + ((i * 7) % 24)}px;height:${10 + ((i * 7) % 24)}px;left:${(i * 11 + 4) % 100}%;animation-duration:${16 + ((i * 5) % 14)}s;animation-delay:-${(i * 3) % 14}s"></span>`).join('');
+let lastDay = todayISO();
+setInterval(() => { const n = todayISO(); if (n !== lastDay) { if (S.date === lastDay) S.date = n; lastDay = n; hooks.render(); } }, 60000);
+hooks.render(); startPolling();
+(async () => { await loadConfig(); if (S.pending.length) flush(); })();
