@@ -42,16 +42,16 @@ export function rowHtml(t, date) {
   const state = t.done ? 'done' : t.skip ? 'skip' : '';
   const meeting = /meeting/i.test(t.text) ? ' meeting' : '';
   const bits = [];
-  if (t.done && t.doneAt) bits.push(`<span>XPA · done ${hm(t.doneAt)}</span>`);
-  if (t.skip) bits.push('<span>Hazy · not needed</span>');
+  if (t.done && t.doneAt) bits.push(`<span>Done ${hm(t.doneAt)}</span>`);
+  if (t.skip) bits.push('<span>Not needed</span>');
   const line = editing
     ? `<input id="edit" class="edit" data-keep="edit" value="${esc((t.time ? t.time + ' ' : '') + t.text)}" maxlength="320" aria-label="Edit task">`
     : `${t.time ? `<span class="time">${t.time}</span>` : ''}<span class="txt" data-act="edit" tabindex="0">${esc(t.text)}</span>`;
   return `<li class="row ${state}${meeting}" data-id="${t.id}" data-date="${date}" style="--cat:${col}">
     <span class="grip" aria-hidden="true" title="Drag to reorder, or drop on another day">${I.grip}</span>
     <div class="marks">
-      <button class="mk xpa" data-act="xpa" aria-pressed="${t.done}" title="XPA — done" aria-label="XPA, done: ${esc(t.text)}">${I.check}</button>
-      <button class="mk hazy" data-act="hazy" aria-pressed="${t.skip}" title="Hazy — not necessary" aria-label="Hazy, not necessary: ${esc(t.text)}">${I.cross}</button>
+      <button class="mk xpa" data-act="xpa" aria-pressed="${t.done}" title="Done" aria-label="Done: ${esc(t.text)}">${I.check}</button>
+      <button class="mk hazy" data-act="hazy" aria-pressed="${t.skip}" title="Not needed" aria-label="Not needed: ${esc(t.text)}">${I.cross}</button>
     </div>
     <div class="body"><div class="line">${line}</div>
       <input class="tnote-in" data-keep="n-${date}-${t.id}" data-note="${t.id}" data-date="${date}" placeholder="Add a note…" value="${esc(t.note)}" maxlength="500" aria-label="Note for: ${esc(t.text)}">
@@ -59,7 +59,7 @@ export function rowHtml(t, date) {
     <button class="kebab" data-act="menu" aria-label="Task options">${I.dots}</button>
     <button class="plus" data-act="ins" title="Add a task underneath" aria-label="Add a task below: ${esc(t.text)}">${I.plus}</button></li>`;
 }
-export const legend = () => `<span class="legend"><i class="mk xpa" aria-pressed="true">${I.check}</i> XPA = done <i class="mk hazy" aria-pressed="true">${I.cross}</i> Hazy = not necessary</span>`;
+export const legend = () => `<span class="legend"><i class="mk xpa" aria-pressed="true">${I.check}</i> Done <i class="mk hazy" aria-pressed="true">${I.cross}</i> Not needed</span>`;
 
 export function carryBanner() {
   const today = todayISO();
