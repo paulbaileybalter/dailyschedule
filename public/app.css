@@ -237,3 +237,13 @@ i.mk{display:inline-grid;width:18px;height:18px;vertical-align:middle;transform:
 .row.done,.row.done.meeting{background:rgba(71,215,172,.3)}
 .row.skip,.row.skip.meeting{background:rgba(253,170,99,.28)}
 .row.done .tnote-in,.row.skip .tnote-in{border-bottom-color:rgba(0,0,0,.12)}
+
+/* + insert-below button, bottom-right of each tile */
+.plus{position:absolute;right:8px;bottom:6px;width:22px;height:22px;border-radius:50%;border:1.5px solid var(--line);background:#fff;color:var(--muted);display:grid;place-items:center;padding:0;opacity:.55;transition:opacity .15s,background .15s,border-color .15s}
+.plus svg{width:12px;height:12px;stroke-width:2.6}
+.row:hover .plus,.plus:focus-visible{opacity:1}.plus:hover{background:var(--teal);border-color:var(--teal);color:#000;opacity:1}
+.tnote-in{width:calc(100% - 30px)}
+.row{padding-bottom:12px}
+.row.draft{background:var(--wash);padding:8px 10px 8px 16px}.row.draft::before{display:none}
+.addfirst{list-style:none;padding:10px 12px}.addfirst .btn{white-space:nowrap}
+.addrow{justify-content:flex-start}

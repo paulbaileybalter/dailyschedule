@@ -8,7 +8,7 @@ export const I = {
   left: P('<path d="m15 18-6-6 6-6"/>'), right: P('<path d="m9 18 6-6-6-6"/>'),
   grip: '<svg viewBox="0 0 24 24"><circle cx="9" cy="5" r="1.8"/><circle cx="15" cy="5" r="1.8"/><circle cx="9" cy="12" r="1.8"/><circle cx="15" cy="12" r="1.8"/><circle cx="9" cy="19" r="1.8"/><circle cx="15" cy="19" r="1.8"/></svg>',
   dots: '<svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg>',
-  check: '<svg viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>', cross: '<svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>', dash: '<svg viewBox="0 0 24 24"><path d="M6 12h12"/></svg>',
+  check: '<svg viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>', plus: '<svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>', cross: '<svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>', dash: '<svg viewBox="0 0 24 24"><path d="M6 12h12"/></svg>',
   cal: P('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>'),
   gear: P('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'),
 };
@@ -56,7 +56,8 @@ export function rowHtml(t, date) {
     <div class="body"><div class="line">${line}</div>
       <input class="tnote-in" data-keep="n-${date}-${t.id}" data-note="${t.id}" data-date="${date}" placeholder="Add a note…" value="${esc(t.note)}" maxlength="500" aria-label="Note for: ${esc(t.text)}">
       ${bits.length ? `<div class="sub">${bits.join('')}</div>` : ''}</div>
-    <button class="kebab" data-act="menu" aria-label="Task options">${I.dots}</button></li>`;
+    <button class="kebab" data-act="menu" aria-label="Task options">${I.dots}</button>
+    <button class="plus" data-act="ins" title="Add a task underneath" aria-label="Add a task below: ${esc(t.text)}">${I.plus}</button></li>`;
 }
 export const legend = () => `<span class="legend"><i class="mk xpa" aria-pressed="true">${I.check}</i> XPA = done <i class="mk hazy" aria-pressed="true">${I.cross}</i> Hazy = not necessary</span>`;
 
@@ -74,7 +75,15 @@ export const importBanner = () => (!S.config.imported && S.configLoaded && !S.im
   ? `<section class="banner teal"><div class="txt2"><b>Bring in your spreadsheet history</b>Your past weeks (March – November) are ready to import so you can look back on what you did. Nothing is overwritten.</div>
        <div style="display:flex;gap:8px"><button class="btn small primary" data-act="import">Import history</button><button class="btn small ghost" data-act="import-dismiss">Not now</button></div></section>` : '');
 const visibleTasks = (day) => day.tasks.filter((t) => !(S.hideDone && (t.done || t.skip)));
-const addRow = (date, ph) => `<div class="addrow"><input data-keep="qa-${date}" data-qa="${date}" placeholder="${ph}" maxlength="300" aria-label="Add a task"><button class="btn small teal" data-act="qa-add" data-date="${date}">Add</button></div>`;
+// The task list for one day, with the "new task" box opened under whichever tile's + was clicked.
+const draftRow = (date) => `<li class="row draft"><input id="ins" class="edit" data-keep="ins" data-ins="${date}" placeholder="New task… e.g. 1330 Team catch-up" maxlength="300" aria-label="New task"></li>`;
+function listHtml(day, date) {
+  const ins = S.inserting && S.inserting.date === date ? S.inserting.after : undefined;
+  const out = visibleTasks(day).map((t) => rowHtml(t, date) + (ins === t.id ? draftRow(date) : '')).join('');
+  const tail = ins === '__end' ? draftRow(date) : '';
+  const empty = !day.tasks.length && !tail ? `<li class="addfirst"><button class="btn small ghost" data-act="ins-end" data-date="${date}">${I.plus} Add a task</button></li>` : '';
+  return `<ul class="list" data-zone="${date}">${out}${tail}${empty}</ul>`;
+}
 
 /* ---------- DAY ---------- */
 export function viewDay() {
@@ -92,9 +101,9 @@ export function viewDay() {
     <div class="head"><h3>Tasks</h3><span class="count">${st.done + st.skip} / ${st.total}</span><span class="sp"></span>${legend()}
       <button class="btn small ghost" data-act="hidedone" aria-pressed="${S.hideDone}">${S.hideDone ? 'Show completed' : 'Hide completed'}</button>
       <button class="btn small ghost icon" data-act="daymenu" aria-label="Day options" style="width:32px;height:32px">${I.dots}</button></div>
-    ${!loaded ? '<div class="empty">Loading…</div>' : `<ul class="list" data-zone="${date}">${list.map((t) => rowHtml(t, date)).join('')}</ul>
-      ${!day.tasks.length ? '<div class="empty">Nothing on tap for this day yet — add a task below.</div>' : hidden && !list.length ? `<div class="empty">All ${hidden} tasks are complete.</div>` : ''}`}
-    ${addRow(date, 'Add a task… e.g. “1330 Team catch-up”')}</section>`;
+    ${!loaded ? '<div class="empty">Loading…</div>' : `${listHtml(day, date)}
+      ${!day.tasks.length ? '<div class="empty">Nothing on tap for this day yet.</div>' : hidden && !list.length ? `<div class="empty">All ${hidden} tasks are complete.</div>` : ''}`}
+</section>`;
 
   const projs = S.config.projects;
   const side = `<aside class="stack">
@@ -132,7 +141,7 @@ export function viewWeek() {
     const day = dayOf(d), st = dayStats(day); done += st.done + st.skip; total += st.total;
     return `<section class="col ${d === today ? 'today' : ''}" data-col="${d}">
       <button class="colhead" data-zone="${d}" data-act="goto" data-date="${d}"><b>${wkdayLong(d)}</b><span>${dm(d)}</span><span style="float:right">${st.done + st.skip}/${st.total}</span><div class="mini"><i style="width:${st.pct * 100}%"></i></div></button>
-      <ul class="list" data-zone="${d}">${visibleTasks(day).map((t) => rowHtml(t, d)).join('')}</ul>${addRow(d, 'Add task…')}</section>`;
+      ${listHtml(day, d)}</section>`;
   }).join('');
   const thisWk = mondayOf(today) === ws;
   return `<div class="weeknav"><button class="btn ghost" data-act="week-step" data-n="-7" aria-label="Previous week">${I.left}</button>

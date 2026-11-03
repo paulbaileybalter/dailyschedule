@@ -23,6 +23,7 @@ function doRender() {
     if (k.f) { el.focus(); try { el.setSelectionRange(k.s, k.e); } catch (e) {} }
   }
   window.scrollTo(0, y); if ($('.weekgrid')) $('.weekgrid').scrollLeft = sx;
+  if (S.inserting) { const el = $('#ins'); if (el && document.activeElement !== el) el.focus(); }
   if (S.editing) { const el = $('#edit'); if (el && document.activeElement !== el) { el.focus(); el.select(); } }
   const liq = $('#liquid');
   if (liq) { const pct = S.pct || 0; liq.getBoundingClientRect(); liq.style.opacity = pct > 0 ? 1 : 0; liq.style.transform = `translateY(${liquidY(pct)}px)`; S.lastPct = pct; }
@@ -228,9 +229,16 @@ function commitEdit() {
   if (el) { const t = findTask(ed.date, ed.id); const p = parseTime(el.value); if (t && p.text && (p.text !== t.text || p.time !== t.time)) upd(ed.date, ed.id, { text: p.text, time: p.time }); }
   hooks.render();
 }
-function quickAdd(date, input) {
-  const p = parseTime(input.value); if (!p.text) return;
-  input.value = ''; addTask(date, { text: p.text, time: p.time });
+// Add the typed task right under the tile whose + was clicked; keep the box open under the new one for rapid entry.
+function commitInsert(input, keepGoing) {
+  const ins = S.inserting; if (!ins) return;
+  const p = parseTime(input.value);
+  if (!p.text) { S.inserting = null; return hooks.render(); }
+  const tasks = dayOf(ins.date).tasks;
+  const at = ins.after === '__end' ? tasks.length : tasks.findIndex((t) => t.id === ins.after) + 1;
+  const t = addTask(ins.date, { text: p.text, time: p.time }, at);
+  S.inserting = keepGoing ? { date: ins.date, after: t.id } : null;
+  input.value = ''; input.dataset.keepGoing = '';
   hooks.render();
 }
 let noteTimer = 0;
@@ -256,7 +264,8 @@ document.addEventListener('click', (e) => {
     case 'daymenu': return dayMenu(el);
     case 'settings': return settingsMenu(el);
     case 'hidedone': S.hideDone = !S.hideDone; ls.set('pds.hideDone', S.hideDone ? '1' : '0'); return hooks.render();
-    case 'qa-add': { const inp = el.previousElementSibling; return quickAdd(el.dataset.date, inp); }
+    case 'ins': S.inserting = { date: row.dataset.date, after: row.dataset.id }; return hooks.render();
+    case 'ins-end': S.inserting = { date: el.dataset.date, after: '__end' }; return hooks.render();
     case 'week-step': S.weekStart = addDays(S.weekStart, +el.dataset.n); return hooks.render();
     case 'week-now': S.weekStart = mondayOf(todayISO()); return hooks.render();
     case 'weekend': S.showWeekend = !S.showWeekend; return hooks.render();
@@ -277,11 +286,11 @@ document.addEventListener('click', (e) => {
 
 document.addEventListener('keydown', (e) => {
   const t = e.target;
-  if (e.key === 'Escape') { closeMenu(); if (S.modal) closeModal(); if (S.editing) { S.editing = null; hooks.render(); } return; }
+  if (e.key === 'Escape') { closeMenu(); if (S.modal) closeModal(); if (S.editing) { S.editing = null; hooks.render(); } if (S.inserting) { S.inserting = null; hooks.render(); } return; }
   if (e.key === 'Enter') {
     if (t.id === 'edit') { e.preventDefault(); return commitEdit(); }
     if (t.dataset && t.dataset.note) { e.preventDefault(); return t.blur(); }
-    if (t.dataset && t.dataset.qa) { e.preventDefault(); return quickAdd(t.dataset.qa, t); }
+    if (t.dataset && t.dataset.ins) { e.preventDefault(); return commitInsert(t, true); }
     if (t.dataset && 'pa' in t.dataset) { e.preventDefault(); return t.nextElementSibling.click(); }
     if (t.id === 'radd') { e.preventDefault(); return t.nextElementSibling.click(); }
     if (t.classList && t.classList.contains('txt')) { S.editing = { id: t.closest('.row').dataset.id, date: t.closest('.row').dataset.date }; return hooks.render(); }
@@ -294,6 +303,7 @@ document.addEventListener('keydown', (e) => {
 document.addEventListener('focusout', (e) => {
   if (rendering) return;
   if (e.target.id === 'edit') commitEdit();
+  else if (e.target.id === 'ins') commitInsert(e.target, false);
   else if (e.target.dataset && e.target.dataset.dnote) { clearTimeout(noteTimer); saveDayNote(e.target); }
 });
 function saveDayNote(el) { const date = el.dataset.dnote; if (el.value !== dayOf(date).note) dispatch(date, { op: 'note', date, text: el.value }); }
@@ -329,7 +339,7 @@ document.addEventListener('pointermove', (e) => {
   drag.to = zone.dataset.zone;
   const list = zone.classList.contains('list') ? zone : zone.closest('.col')?.querySelector('.list');
   if (zone.classList.contains('list')) {
-    const rows = [...zone.querySelectorAll('.row:not(.dragging)')]; let k = rows.length;
+    const rows = [...zone.querySelectorAll('.row:not(.dragging):not(.draft)')]; let k = rows.length;
     for (let i = 0; i < rows.length; i++) { const b = rows[i].getBoundingClientRect(); if (e.clientY < b.top + b.height / 2) { k = i; break; } }
     if (!rows.length) zone.classList.add('drop-empty');
     else if (k < rows.length) { rows[k].classList.add('drop-before'); drag.before = rows[k].dataset.id; } else rows[rows.length - 1].classList.add('drop-after');
