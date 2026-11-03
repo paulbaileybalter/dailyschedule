@@ -24,7 +24,6 @@ function doRender() {
   }
   window.scrollTo(0, y); if ($('.weekgrid')) $('.weekgrid').scrollLeft = sx;
   if (S.editing) { const el = $('#edit'); if (el && document.activeElement !== el) { el.focus(); el.select(); } }
-  if (S.noteEdit) { const el = $('#nedit'); if (el && document.activeElement !== el) el.focus(); }
   const liq = $('#liquid');
   if (liq) { const pct = S.pct || 0; liq.getBoundingClientRect(); liq.style.opacity = pct > 0 ? 1 : 0; liq.style.transform = `translateY(${liquidY(pct)}px)`; S.lastPct = pct; }
   document.querySelectorAll('header .tab').forEach((t) => t.setAttribute('aria-selected', t.dataset.view === S.view));
@@ -70,12 +69,12 @@ function pickDate(cb, start) {
 
 /* ---------- navigation ---------- */
 function setView(v) {
-  S.view = v; S.editing = S.noteEdit = null;
+  S.view = v; S.editing = null;
   if (v === 'week') S.weekStart = mondayOf(S.date);
   if (v === 'history') { Object.assign(S.history, { weeks: [], oldest: null, exhausted: false, all: null, query: '' }); loadHistory(); }
   hooks.render(); window.scrollTo(0, 0);
 }
-const goDay = (d) => { S.date = d; S.view = 'day'; S.editing = S.noteEdit = null; hooks.render(); window.scrollTo(0, 0); };
+const goDay = (d) => { S.date = d; S.view = 'day'; S.editing = null; hooks.render(); window.scrollTo(0, 0); };
 
 async function loadHistory() {
   const h = S.history; if (h.loading) return;
@@ -102,8 +101,6 @@ function taskMenu(btn) {
   const nwd = nextWD(date), today = todayISO();
   openMenu(btn, [
     { label: 'Edit text or time', fn: () => { S.editing = { id, date }; hooks.render(); } },
-    { label: t.note ? 'Edit note' : 'Add a note', fn: () => { S.noteEdit = { id, date }; hooks.render(); } },
-    t.skip ? { label: 'Restore — needed after all', fn: () => upd(date, id, { skip: false }) } : { label: 'Not needed today', fn: () => upd(date, id, { skip: true }) },
     { sep: true },
     date !== today && { label: 'Move to today', fn: () => doMove(id, date, today) },
     { label: `Move to ${shortDate(nwd)}`, fn: () => doMove(id, date, nwd) },
@@ -231,11 +228,6 @@ function commitEdit() {
   if (el) { const t = findTask(ed.date, ed.id); const p = parseTime(el.value); if (t && p.text && (p.text !== t.text || p.time !== t.time)) upd(ed.date, ed.id, { text: p.text, time: p.time }); }
   hooks.render();
 }
-function commitNote() {
-  const ed = S.noteEdit, el = $('#nedit'); if (!ed) return; S.noteEdit = null;
-  if (el) { const t = findTask(ed.date, ed.id); if (t && el.value !== t.note) upd(ed.date, ed.id, { note: el.value.trim() }); }
-  hooks.render();
-}
 function quickAdd(date, input) {
   const p = parseTime(input.value); if (!p.text) return;
   input.value = ''; addTask(date, { text: p.text, time: p.time });
@@ -257,9 +249,9 @@ document.addEventListener('click', (e) => {
     case 'goto-day': return goDay(el.dataset.date);
     case 'today': return goDay(todayISO());
     case 'pickdate': return pickDate(goDay, S.date);
-    case 'toggle': { const t = findTask(row.dataset.date, row.dataset.id); return t && upd(row.dataset.date, t.id, { done: !t.done }); }
+    case 'xpa': { const t = findTask(row.dataset.date, row.dataset.id); return t && upd(row.dataset.date, t.id, { done: !t.done }); }
+    case 'hazy': { const t = findTask(row.dataset.date, row.dataset.id); return t && upd(row.dataset.date, t.id, { skip: !t.skip }); }
     case 'edit': if (!S.editing) { S.editing = { id: row.dataset.id, date: row.dataset.date }; hooks.render(); } return;
-    case 'notedit': S.noteEdit = { id: row.dataset.id, date: row.dataset.date }; return hooks.render();
     case 'menu': return taskMenu(el);
     case 'daymenu': return dayMenu(el);
     case 'settings': return settingsMenu(el);
@@ -285,10 +277,10 @@ document.addEventListener('click', (e) => {
 
 document.addEventListener('keydown', (e) => {
   const t = e.target;
-  if (e.key === 'Escape') { closeMenu(); if (S.modal) closeModal(); if (S.editing) { S.editing = null; hooks.render(); } if (S.noteEdit) { S.noteEdit = null; hooks.render(); } return; }
+  if (e.key === 'Escape') { closeMenu(); if (S.modal) closeModal(); if (S.editing) { S.editing = null; hooks.render(); } return; }
   if (e.key === 'Enter') {
     if (t.id === 'edit') { e.preventDefault(); return commitEdit(); }
-    if (t.id === 'nedit') { e.preventDefault(); return commitNote(); }
+    if (t.dataset && t.dataset.note) { e.preventDefault(); return t.blur(); }
     if (t.dataset && t.dataset.qa) { e.preventDefault(); return quickAdd(t.dataset.qa, t); }
     if (t.dataset && 'pa' in t.dataset) { e.preventDefault(); return t.nextElementSibling.click(); }
     if (t.id === 'radd') { e.preventDefault(); return t.nextElementSibling.click(); }
@@ -302,10 +294,13 @@ document.addEventListener('keydown', (e) => {
 document.addEventListener('focusout', (e) => {
   if (rendering) return;
   if (e.target.id === 'edit') commitEdit();
-  else if (e.target.id === 'nedit') commitNote();
   else if (e.target.dataset && e.target.dataset.dnote) { clearTimeout(noteTimer); saveDayNote(e.target); }
 });
 function saveDayNote(el) { const date = el.dataset.dnote; if (el.value !== dayOf(date).note) dispatch(date, { op: 'note', date, text: el.value }); }
+document.addEventListener('change', (e) => {
+  const t = e.target;
+  if (t.dataset && t.dataset.note) { const task = findTask(t.dataset.date, t.dataset.note); if (task && t.value.trim() !== task.note) upd(t.dataset.date, task.id, { note: t.value.trim() }); }
+});
 document.addEventListener('input', (e) => {
   const t = e.target;
   if (t.dataset && t.dataset.dnote) { clearTimeout(noteTimer); noteTimer = setTimeout(() => saveDayNote(t), 900); }

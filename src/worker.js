@@ -15,7 +15,7 @@
 //   config        {routine, projects, imported}
 //   auth          {salt, hash}  (PBKDF2-SHA256)
 
-import { applyOps, normaliseWeek, emptyWeek, isMonday, validDate, addDays, validId } from '../public/ops.js';
+import { stripNecessary, applyOps, normaliseWeek, emptyWeek, isMonday, validDate, addDays, validId } from '../public/ops.js';
 import { DEFAULT_ROUTINE, DEFAULT_PROJECTS } from './defaults.js';
 
 const COOKIE = 'bal_session';
@@ -152,7 +152,7 @@ function cleanRoutine(r) {
     out[String(d)] = list.slice(0, 80).map((it, i) => {
       const o = {
         id: validId(it && it.id) ? it.id : `x${d}${Date.now().toString(36)}${i}`.slice(0, 20),
-        text: clean(it && it.text, 300).trim(),
+        text: stripNecessary(clean(it && it.text, 300)),
       };
       if (/^([01]\d|2[0-3]):[0-5]\d$/.test((it && it.time) || '')) o.time = it.time;
       if (it && ['meet', 'stock', 'plan', 'proj', 'gen'].includes(it.cat)) o.cat = it.cat;
@@ -163,7 +163,7 @@ function cleanRoutine(r) {
 }
 function cleanProjects(p) {
   return (Array.isArray(p) ? p : []).slice(0, 100)
-    .map((it, i) => ({ id: validId(it && it.id) ? it.id : `p${Date.now().toString(36)}${i}`.slice(0, 20), text: clean(it && it.text, 300).trim(), done: !!(it && it.done) }))
+    .map((it, i) => ({ id: validId(it && it.id) ? it.id : `p${Date.now().toString(36)}${i}`.slice(0, 20), text: stripNecessary(clean(it && it.text, 300)), done: !!(it && it.done) }))
     .filter((it) => it.text);
 }
 async function loadConfig(env) {

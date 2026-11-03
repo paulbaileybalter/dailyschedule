@@ -26,7 +26,7 @@ export const ls = {
 
 /* ---------- state ---------- */
 export const S = {
-  view: 'day', date: todayISO(), weekStart: mondayOf(todayISO()), showWeekend: false,
+  view: 'week', date: todayISO(), weekStart: mondayOf(todayISO()), showWeekend: false,
   config: { routine: {}, projects: [], imported: true }, configLoaded: false,
   weeks: {},      // server copies, by Monday
   pending: [],    // [{w, op}] changes not yet confirmed by the server
@@ -169,7 +169,7 @@ export const visibleWeeks = () => (S.view === 'day' ? [mondayOf(S.date)] : S.vie
 export function ensureData() {
   const today = todayISO();
   const need = new Set(visibleWeeks());
-  if (S.view === 'day' && S.date === today) { need.add(mondayOf(addDays(today, -1))); need.add(mondayOf(addDays(today, -7))); }
+  if ((S.view === 'day' && S.date === today) || (S.view === 'week' && S.weekStart === mondayOf(today))) { need.add(mondayOf(addDays(today, -1))); need.add(mondayOf(addDays(today, -7))); }
   need.forEach(ensureWeek);
   if (!S.configLoaded) return;
   const dates = S.view === 'day' ? [S.date] : S.view === 'week' ? [0, 1, 2, 3, 4].map((i) => addDays(S.weekStart, i)) : [];

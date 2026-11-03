@@ -59,6 +59,20 @@ export function guessCat(t) {
 }
 export const catOf = (t) => (t.cat && CATS[t.cat] ? t.cat : guessCat(t));
 
+// "(when necessary)", "(not necessary)", "(if necessary w/ James)", "(when required)" are no longer shown —
+// whether a task was needed is now recorded with the Hazy ✗ button instead.
+export function stripNecessary(s) {
+  const src = String(s == null ? '' : s);
+  const out = src
+    .replace(/\s*\(([^)]*(?:necessary|when required)[^)]*)\)/gi, (m, inner) => {
+      const rest = inner.replace(/\b(?:f?not\s*|no\s+PO\s+|if\s+|when\s+)(?:necessary|required)\b|\bnecessary\b/gi, '').replace(/^[\s\-–]+|[\s\-–]+$/g, '');
+      return rest ? ' (' + rest + ')' : '';
+    })
+    .replace(/\s*-\s*PO\s+not\s+necessary\s*$/i, '')
+    .replace(/\s{2,}/g, ' ').trim();
+  return out || src.trim();
+}
+
 export function cleanTask(t) {
   t = t && typeof t === 'object' ? t : {};
   const time = /^([01]\d|2[0-3]):[0-5]\d$/.test(t.time || '') ? t.time : '';
@@ -66,7 +80,7 @@ export function cleanTask(t) {
   const skip = !!t.skip && !t.done;
   return {
     id: validId(t.id) ? t.id : '',
-    text: clean(t.text, 300).trim(),
+    text: stripNecessary(clean(t.text, 300)),
     done: !!t.done,
     skip,
     doneAt: t.done ? doneAt : null,
@@ -132,7 +146,7 @@ export function applyOps(doc, ops, ctx) {
         const cur = day.tasks[i];
         const s = op.set && typeof op.set === 'object' ? op.set : {};
         const next = { ...cur };
-        if ('text' in s) next.text = clean(s.text, 300).trim() || cur.text;
+        if ('text' in s) next.text = stripNecessary(clean(s.text, 300)) || cur.text;
         if ('time' in s) next.time = s.time;
         if ('cat' in s) next.cat = s.cat;
         if ('note' in s) next.note = s.note;

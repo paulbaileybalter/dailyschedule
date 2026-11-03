@@ -212,3 +212,28 @@ mark{background:var(--pale);border-radius:3px;padding:0 1px}
   header,.bubbles,.tabs,.grip,.kebab,.addrow,.daynav .nbtn,.cols>aside .btn,.banner,#toast,.glass{display:none!important}
   .cols{display:block}.card{box-shadow:none}.page{max-width:none;padding:0}.hero-body{grid-template-columns:1fr}
 }
+
+/* XPA (done) / Hazy (not necessary) buttons */
+.marks{display:flex;flex-direction:column;gap:4px;flex:none;margin-top:1px}
+.mk{width:24px;height:24px;border-radius:50%;border:2px solid;background:#fff;display:grid;place-items:center;padding:0;font-style:normal;transition:background .15s,transform .15s}
+.mk svg{width:13px;height:13px;stroke-width:3}
+.mk.xpa{border-color:var(--teal);color:#1E9C78}.mk.hazy{border-color:var(--orange);color:#D9701C}
+.mk.xpa:hover{background:rgba(71,215,172,.25);transform:scale(1.1)}.mk.hazy:hover{background:rgba(253,170,99,.3);transform:scale(1.1)}
+.mk.xpa[aria-pressed=true]{background:var(--teal);color:#000;animation:pop .3s}
+.mk.hazy[aria-pressed=true]{background:var(--orange);color:#000;animation:pop .3s}
+i.mk{display:inline-grid;width:18px;height:18px;vertical-align:middle;transform:none!important;animation:none!important}i.mk svg{width:10px;height:10px}
+.legend{font-size:12px;color:var(--muted);display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+.legend .mk{margin-left:8px}
+.tnote-in{display:block;width:100%;margin-top:3px;border:0;border-bottom:1px dashed transparent;background:transparent;padding:2px 0;font-size:12px;color:var(--muted);border-radius:0}
+.tnote-in::placeholder{color:#C4C1B3}.row:hover .tnote-in,.tnote-in:focus,.tnote-in:not(:placeholder-shown){border-bottom-color:var(--line)}
+.tnote-in:focus{outline:none;border-bottom:1px solid var(--sky);color:#000}
+.row.meeting{background:rgba(241,235,156,.65)}
+.row.skip{background:rgba(253,170,99,.08)}.row.skip.meeting{background:rgba(241,235,156,.35)}
+.row.done .chk{}
+.hit .m{display:inline-block;width:16px;color:var(--muted)}
+.col .mk{width:22px;height:22px}.col .mk svg{width:11px;height:11px}
+
+/* ticked tiles take on the button's colour (done wins over the meeting tint) */
+.row.done,.row.done.meeting{background:rgba(71,215,172,.3)}
+.row.skip,.row.skip.meeting{background:rgba(253,170,99,.28)}
+.row.done .tnote-in,.row.skip .tnote-in{border-bottom-color:rgba(0,0,0,.12)}

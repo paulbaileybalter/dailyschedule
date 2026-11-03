@@ -8,7 +8,7 @@ export const I = {
   left: P('<path d="m15 18-6-6 6-6"/>'), right: P('<path d="m9 18 6-6-6-6"/>'),
   grip: '<svg viewBox="0 0 24 24"><circle cx="9" cy="5" r="1.8"/><circle cx="15" cy="5" r="1.8"/><circle cx="9" cy="12" r="1.8"/><circle cx="15" cy="12" r="1.8"/><circle cx="9" cy="19" r="1.8"/><circle cx="15" cy="19" r="1.8"/></svg>',
   dots: '<svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg>',
-  check: '<svg viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>', dash: '<svg viewBox="0 0 24 24"><path d="M6 12h12"/></svg>',
+  check: '<svg viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>', cross: '<svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>', dash: '<svg viewBox="0 0 24 24"><path d="M6 12h12"/></svg>',
   cal: P('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>'),
   gear: P('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'),
 };
@@ -39,23 +39,40 @@ export function glass(pct, full) {
 export function rowHtml(t, date) {
   const col = CATS[catOf(t)].color;
   const editing = S.editing && S.editing.id === t.id && S.editing.date === date;
-  const noting = S.noteEdit && S.noteEdit.id === t.id && S.noteEdit.date === date;
   const state = t.done ? 'done' : t.skip ? 'skip' : '';
+  const meeting = /meeting/i.test(t.text) ? ' meeting' : '';
   const bits = [];
-  if (t.done && t.doneAt) bits.push(`<span>Done ${hm(t.doneAt)}</span>`);
-  if (t.skip) bits.push('<span>Not needed today</span>');
-  const sub = noting
-    ? `<input id="nedit" class="nedit" data-keep="nedit" placeholder="Add a note…" value="${esc(t.note)}" maxlength="500">`
-    : (t.note || bits.length) ? `<div class="sub">${t.note ? `<span class="tnote" data-act="notedit" title="Click to edit">${esc(t.note)}</span>` : ''}${bits.join('')}</div>` : '';
+  if (t.done && t.doneAt) bits.push(`<span>XPA · done ${hm(t.doneAt)}</span>`);
+  if (t.skip) bits.push('<span>Hazy · not needed</span>');
   const line = editing
     ? `<input id="edit" class="edit" data-keep="edit" value="${esc((t.time ? t.time + ' ' : '') + t.text)}" maxlength="320" aria-label="Edit task">`
     : `${t.time ? `<span class="time">${t.time}</span>` : ''}<span class="txt" data-act="edit" tabindex="0">${esc(t.text)}</span>`;
-  return `<li class="row ${state}" data-id="${t.id}" data-date="${date}" style="--cat:${col}">
+  return `<li class="row ${state}${meeting}" data-id="${t.id}" data-date="${date}" style="--cat:${col}">
     <span class="grip" aria-hidden="true" title="Drag to reorder, or drop on another day">${I.grip}</span>
-    <button class="chk" role="checkbox" aria-checked="${t.done}" data-act="toggle" aria-label="Mark done: ${esc(t.text)}">${t.done ? I.check : t.skip ? I.dash : ''}</button>
-    <div class="body"><div class="line">${line}</div>${sub}</div>
+    <div class="marks">
+      <button class="mk xpa" data-act="xpa" aria-pressed="${t.done}" title="XPA — done" aria-label="XPA, done: ${esc(t.text)}">${I.check}</button>
+      <button class="mk hazy" data-act="hazy" aria-pressed="${t.skip}" title="Hazy — not necessary" aria-label="Hazy, not necessary: ${esc(t.text)}">${I.cross}</button>
+    </div>
+    <div class="body"><div class="line">${line}</div>
+      <input class="tnote-in" data-keep="n-${date}-${t.id}" data-note="${t.id}" data-date="${date}" placeholder="Add a note…" value="${esc(t.note)}" maxlength="500" aria-label="Note for: ${esc(t.text)}">
+      ${bits.length ? `<div class="sub">${bits.join('')}</div>` : ''}</div>
     <button class="kebab" data-act="menu" aria-label="Task options">${I.dots}</button></li>`;
 }
+export const legend = () => `<span class="legend"><i class="mk xpa" aria-pressed="true">${I.check}</i> XPA = done <i class="mk hazy" aria-pressed="true">${I.cross}</i> Hazy = not necessary</span>`;
+
+export function carryBanner() {
+  const today = todayISO();
+  if (ls.get('pds.carry.' + today) === '1') return '';
+  const list = carryList();
+  if (!list || !list.length) return '';
+  return `<section class="banner" aria-label="Unfinished tasks">
+      <div class="txt2"><b>Left in the fermenter — ${list.length} unfinished task${list.length > 1 ? 's' : ''} from earlier</b>
+      <ul class="carry">${list.slice(0, 6).map((x) => `<li><span>${esc(x.t.text)}</span><small class="muted">${shortDate(x.date)}</small><button class="btn small" data-act="carry-one" data-date="${x.date}" data-id="${x.t.id}">Bring to today</button></li>`).join('')}${list.length > 6 ? `<li class="muted">…and ${list.length - 6} more</li>` : ''}</ul></div>
+      <div style="display:flex;gap:8px"><button class="btn small primary" data-act="carry-all">Bring all to today</button><button class="btn small ghost" data-act="carry-dismiss">Dismiss</button></div></section>`;
+}
+export const importBanner = () => (!S.config.imported && S.configLoaded && !S.importDismissed
+  ? `<section class="banner teal"><div class="txt2"><b>Bring in your spreadsheet history</b>Your past weeks (March – November) are ready to import so you can look back on what you did. Nothing is overwritten.</div>
+       <div style="display:flex;gap:8px"><button class="btn small primary" data-act="import">Import history</button><button class="btn small ghost" data-act="import-dismiss">Not now</button></div></section>` : '');
 const visibleTasks = (day) => day.tasks.filter((t) => !(S.hideDone && (t.done || t.skip)));
 const addRow = (date, ph) => `<div class="addrow"><input data-keep="qa-${date}" data-qa="${date}" placeholder="${ph}" maxlength="300" aria-label="Add a task"><button class="btn small teal" data-act="qa-add" data-date="${date}">Add</button></div>`;
 
@@ -69,22 +86,10 @@ export function viewDay() {
   const next = isToday ? day.tasks.filter((t) => t.time && !t.done && !t.skip && t.time >= nowHM).sort((a, b) => a.time.localeCompare(b.time))[0] : null;
   const p = prevWD(date), n = nextWD(date);
 
-  let carry = '';
-  if (isToday && ls.get('pds.carry.' + today) !== '1') {
-    const list = carryList();
-    if (list && list.length) carry = `<section class="banner" aria-label="Unfinished tasks">
-      <div class="txt2"><b>Left in the fermenter — ${list.length} unfinished task${list.length > 1 ? 's' : ''} from earlier</b>
-      <ul class="carry">${list.slice(0, 6).map((x) => `<li><span>${esc(x.t.text)}</span><small class="muted">${shortDate(x.date)}</small><button class="btn small" data-act="carry-one" data-date="${x.date}" data-id="${x.t.id}">Bring to today</button></li>`).join('')}${list.length > 6 ? `<li class="muted">…and ${list.length - 6} more</li>` : ''}</ul></div>
-      <div style="display:flex;gap:8px"><button class="btn small primary" data-act="carry-all">Bring all to today</button><button class="btn small ghost" data-act="carry-dismiss">Dismiss</button></div></section>`;
-  }
-  const imp = !S.config.imported && S.configLoaded && !S.importDismissed
-    ? `<section class="banner teal"><div class="txt2"><b>Bring in your spreadsheet history</b>Your past weeks (March – November) are ready to import so you can look back on what you did. Nothing is overwritten.</div>
-       <div style="display:flex;gap:8px"><button class="btn small primary" data-act="import">Import history</button><button class="btn small ghost" data-act="import-dismiss">Not now</button></div></section>` : '';
-
   const list = visibleTasks(day);
   const hidden = day.tasks.length - list.length;
   const tasksCard = `<section class="card c-teal"><div class="bar"></div>
-    <div class="head"><h3>Tasks</h3><span class="count">${st.done + st.skip} / ${st.total}</span><span class="sp"></span>
+    <div class="head"><h3>Tasks</h3><span class="count">${st.done + st.skip} / ${st.total}</span><span class="sp"></span>${legend()}
       <button class="btn small ghost" data-act="hidedone" aria-pressed="${S.hideDone}">${S.hideDone ? 'Show completed' : 'Hide completed'}</button>
       <button class="btn small ghost icon" data-act="daymenu" aria-label="Day options" style="width:32px;height:32px">${I.dots}</button></div>
     ${!loaded ? '<div class="empty">Loading…</div>' : `<ul class="list" data-zone="${date}">${list.map((t) => rowHtml(t, date)).join('')}</ul>
@@ -114,7 +119,7 @@ export function viewDay() {
       <div class="beerbar"><i style="width:${pct * 100}%"></i></div>
       <div class="chips">${st.skip ? `<span class="chip">${st.skip} not needed</span>` : ''}${next ? `<span class="chip next">Next up · ${next.time} ${esc(next.text.slice(0, 40))}</span>` : ''}</div></div></div></section>
   ${allDone ? `<div class="done-banner"><svg viewBox="0 0 161 161" width="30" height="30"><path fill="#47D7AC" stroke="none" d="${SMILE}"/></svg>Cheers — everything for this day is sorted.</div>` : ''}
-  ${imp}${carry}<div class="cols">${tasksCard}${side}</div>`;
+  ${importBanner()}${isToday ? carryBanner() : ''}<div class="cols">${tasksCard}${side}</div>`;
 }
 
 /* ---------- WEEK ---------- */
@@ -137,6 +142,7 @@ export function viewWeek() {
     <span class="sp"></span><span class="count">${done} / ${total} done</span>
     <button class="btn small ghost" data-act="weekend" aria-pressed="${S.showWeekend}">${S.showWeekend ? 'Hide' : 'Show'} weekend</button>
     <button class="btn small ghost" data-act="hidedone">${S.hideDone ? 'Show completed' : 'Hide completed'}</button></div>
+  <div style="margin:0 0 12px">${legend()}</div>${importBanner()}${thisWk ? carryBanner() : ''}
   ${loaded ? `<div class="weekgrid" style="--n:${n}">${cols}</div>` : '<div class="empty">Loading…</div>'}`;
 }
 
