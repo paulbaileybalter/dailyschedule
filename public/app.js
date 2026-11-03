@@ -2,7 +2,7 @@
 import { CATS, parseTime } from '/ops.js';
 import { S, hooks, esc, uid, todayISO, shortDate, longDate, nextWD, prevWD, addDays, mondayOf, dowOf, isWeekend, dayOf, findTask, dayStats, catOf,
   api, docFor, dispatch, upd, addTask, moveTask, deleteTask, ensureData, ensureWeek, loadConfig, saveConfigSoon, flush, startPolling, setStatus, touch, carryList, ls, scheduleFlush } from '/core.js';
-import { viewDay, viewWeek, viewHistory, liquidY, I } from '/views.js';
+import { viewDay, viewWeek, viewHistory, liquidY, I, legend } from '/views.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const app = $('#app');
@@ -426,6 +426,7 @@ async function loadWeather() {
 }
 
 /* ---------- start ---------- */
+$('#now').insertAdjacentHTML('afterbegin', legend());
 paintDate(); loadWeather(); setInterval(loadWeather, 15 * 60 * 1000); setInterval(paintDate, 60000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { paintDate(); loadWeather(); } });
 $('#settingsBtn').innerHTML = I.gear;

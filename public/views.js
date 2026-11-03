@@ -64,9 +64,9 @@ export function rowHtml(t, date) {
 export function searchBar(date0, dates) {
   let n = 0;
   if (qActive()) for (const d of dates) n += dayOf(d).tasks.filter(qMatch).length;
-  return `<div class="qbar"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-    <input type="search" data-keep="q" data-q placeholder="Search tasks and notes…" value="${esc(S.q)}" aria-label="Search tasks and notes" autocomplete="off">
-    ${qActive() ? `<span class="count">${n} match${n === 1 ? '' : 'es'} here</span><button class="btn small ghost" data-act="q-hist">Search all history</button><button class="btn small ghost" data-act="q-clear">Clear</button>` : ''}</div>`;
+  return `<div class="qbar mini"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input type="search" data-keep="q" data-q placeholder="Search…" value="${esc(S.q)}" aria-label="Search tasks and notes" autocomplete="off">
+    ${qActive() ? `<span class="count">${n} match${n === 1 ? '' : 'es'} here</span><button class="btn small ghost" data-act="q-hist" title="Search all history">All history</button><button class="btn small ghost icon" data-act="q-clear" aria-label="Clear search" style="width:28px;height:28px">✕</button>` : ''}</div>`;
 }
 export const legend = () => `<span class="legend"><i class="mk xpa" aria-pressed="true">${I.check}</i> Done <i class="mk hazy" aria-pressed="true">${I.cross}</i> Not needed</span>`;
 
@@ -107,7 +107,7 @@ export function viewDay() {
   const list = visibleTasks(day);
   const hidden = day.tasks.length - list.length;
   const tasksCard = `<section class="card c-teal"><div class="bar"></div>
-    <div class="head"><h3>Tasks</h3><span class="count">${st.done + st.skip} / ${st.total}</span><span class="sp"></span>${legend()}
+    <div class="head"><h3>Tasks</h3><span class="count">${st.done + st.skip} / ${st.total}</span><span class="sp"></span>
       <button class="btn small ghost" data-act="hidedone" aria-pressed="${S.hideDone}">${S.hideDone ? 'Show completed' : 'Hide completed'}</button>
       <button class="btn small ghost icon" data-act="daymenu" aria-label="Day options" style="width:32px;height:32px">${I.dots}</button></div>
     ${!loaded ? '<div class="empty">Loading…</div>' : `${listHtml(day, date)}
@@ -130,7 +130,7 @@ export function viewDay() {
     <div class="title"><h2>${longDate(date)}</h2>${isToday ? '<span class="tag">Today</span>' : `<button class="tag alt" data-act="today" style="border:0;cursor:pointer">Back to today</button>`}
       <button class="btn small ghost icon" data-act="pickdate" aria-label="Pick a date" style="width:30px;height:30px;vertical-align:middle">${I.cal}</button></div>
     <button class="nbtn" data-zone="${n}" data-act="goto" data-date="${n}" aria-label="Next day"><span>${shortDate(n)}</span>${I.right}</button></div>
-  ${searchBar(date, [date])}
+  <div style="display:flex;justify-content:flex-end;margin-bottom:12px">${searchBar(date, [date])}</div>
   <section class="card c-gold"><div class="bar"></div><div class="hero-body">${glass(pct, allDone)}
     <div class="hero-main"><div class="kicker">${isToday ? 'On tap today' : 'On tap'}</div>
       <div class="counter"><span class="big">${st.done}<small>/${st.total}</small></span><span class="lbl">tasks done</span>
@@ -158,11 +158,11 @@ export function viewWeek() {
     <h2>${dm(ws)} – ${dm(addDays(ws, n - 1))} ${addDays(ws, 4).slice(0, 4)}</h2>
     <button class="btn ghost" data-act="week-step" data-n="7" aria-label="Next week">${I.right}</button>
     ${thisWk ? '' : '<button class="btn small" data-act="week-now">This week</button>'}
-    <span class="sp"></span><span class="count">${done} / ${total} done</span>
+    <span class="sp"></span>${searchBar(ws, days)}<span class="count">${done} / ${total} done</span>
     <button class="btn small" data-act="export-week" title="Download this week as a spreadsheet (CSV)">Export CSV</button>
     <button class="btn small ghost" data-act="weekend" aria-pressed="${S.showWeekend}">${S.showWeekend ? 'Hide' : 'Show'} weekend</button>
     <button class="btn small ghost" data-act="hidedone">${S.hideDone ? 'Show completed' : 'Hide completed'}</button></div>
-  ${searchBar(ws, days)}<div style="margin:0 0 12px">${legend()}</div>${importBanner()}${thisWk ? carryBanner() : ''}
+  ${importBanner()}${thisWk ? carryBanner() : ''}
   ${loaded ? `<div class="weekgrid" style="--n:${n}">${cols}</div>` : '<div class="empty">Loading…</div>'}`;
 }
 
