@@ -34,7 +34,7 @@ def strip_nec(t):
 
 def split_time(t):
     """'1330 Meeting' -> ('13:30','Meeting'); mirrors parseTime() in public/ops.js"""
-    m = re.match(r'^([01]\d|2[0-3])([0-5]\d)\s+(.+)$', t)
+    m = re.match(r'^([01]\d)([0-5]\d)\s+(.+)$', t)
     if m: return f'{m[1]}:{m[2]}', m[3].strip()
     m = re.match(r'^(\d{1,2}):(\d{2})\s*[-:]?\s*(.+)$', t)
     if m and int(m[1]) < 24 and int(m[2]) < 60: return f'{int(m[1]):02d}:{m[2]}', m[3].strip()

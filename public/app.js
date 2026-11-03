@@ -1,7 +1,7 @@
 // Rendering loop, events, menus, drag & drop, dialogs. State lives in core.js, markup in views.js.
 import { CATS, parseTime } from '/ops.js';
 import { S, hooks, esc, uid, todayISO, shortDate, longDate, nextWD, prevWD, addDays, mondayOf, dowOf, isWeekend, dayOf, findTask, dayStats, catOf,
-  api, dispatch, upd, addTask, moveTask, deleteTask, ensureData, ensureWeek, loadConfig, saveConfigSoon, flush, startPolling, setStatus, touch, carryList, ls, scheduleFlush } from '/core.js';
+  api, docFor, dispatch, upd, addTask, moveTask, deleteTask, ensureData, ensureWeek, loadConfig, saveConfigSoon, flush, startPolling, setStatus, touch, carryList, ls, scheduleFlush } from '/core.js';
 import { viewDay, viewWeek, viewHistory, liquidY, I } from '/views.js';
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -149,11 +149,57 @@ function settingsMenu(btn) {
     { label: 'Edit weekly routine…', fn: openRoutine },
     { label: 'Change password…', fn: openPassword },
     !S.config.imported && { label: 'Import spreadsheet history…', fn: importHistory },
+    { label: 'Export this week (CSV)', fn: exportWeek },
+    { label: 'Export all history (CSV)', fn: exportAll },
     { label: 'Print', fn: () => window.print() },
     { sep: true },
     { label: 'Sign out', fn: () => (location.href = '/logout') },
   ].filter(Boolean));
 }
+
+/* ---------- export to CSV (opens in Excel / Sheets) ---------- */
+const csvCell = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+function downloadCsv(name, rows) {
+  const blob = new Blob(['\ufeff' + rows.map((r) => r.map(csvCell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+const dmy = (iso) => iso.slice(8) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4);
+const cellText = (t) => (t.done ? '✓ ' : t.skip ? '✗ ' : '') + (t.time ? t.time.replace(':', '') + ' ' : '') + t.text + (t.note ? ' — ' + t.note : '');
+// Same shape as your spreadsheet: Monday–Friday columns with dates underneath, then Ongoing / Projects.
+function exportWeek() {
+  const ws = S.weekStart;
+  const days = [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(ws, i)).filter((d, i) => i < 5 || dayOf(d).tasks.length);
+  const names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const cols = days.map((d) => dayOf(d).tasks.map(cellText));
+  const proj = S.config.projects.map((p) => (p.done ? '✓ ' : '') + p.text);
+  const height = Math.max(...cols.map((c) => c.length), proj.length - 1, 0);
+  const rows = [[...days.map((d, i) => names[i]), 'Ongoing / Projects'], [...days.map(dmy), proj[0] || '']];
+  for (let r = 0; r < height; r++) rows.push([...cols.map((c) => c[r] || ''), proj[r + 1] || '']);
+  const notes = days.map((d) => dayOf(d).note);
+  if (notes.some(Boolean)) rows.push([...notes.map((n) => (n ? 'Notes: ' + n : '')), '']);
+  downloadCsv(`Task Dashboard WC ${ws.slice(8)}.${ws.slice(5, 7)}.${ws.slice(2, 4)}.csv`, rows);
+  toast('Week exported — ✓ done, ✗ not needed');
+}
+// One row per task, every week on record.
+async function exportAll() {
+  toast('Preparing export…');
+  const rows = [['Date', 'Day', 'Time', 'Task', 'Status', 'Done at', 'Note', 'Day notes']]; let to = mondayOf(todayISO()), empty = 0;
+  for (let page = 0; page < 6 && empty < 2; page++) {
+    const r = await api(`/api/weeks?to=${to}&n=40`); if (!r.ok) return toast('Export failed — please try again');
+    for (const { start, doc } of r.data.weeks) {
+      const d = S.weeks[start] !== undefined ? dayOfWeekDoc(start) : doc;
+      for (const [date, day] of Object.entries(d.days)) for (const t of day.tasks)
+        rows.push([date, new Date(date + 'T00:00:00Z').toLocaleDateString('en-AU', { weekday: 'long', timeZone: 'UTC' }), t.time, t.text, t.done ? 'Done' : t.skip ? 'Not needed' : 'Open', t.doneAt ? new Date(t.doneAt).toLocaleString('en-AU') : '', t.note, '']);
+    }
+    empty = r.data.weeks.every((x) => !Object.values(x.doc.days).some((d) => d.tasks.length)) ? empty + 1 : 0;
+    to = addDays(to, -280);
+  }
+  const body = rows.slice(1).sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+  downloadCsv(`Task Dashboard — all history.csv`, [rows[0], ...body]);
+  toast(`Exported ${body.length} tasks`);
+}
+const dayOfWeekDoc = (w) => docFor(w);
 
 /* ---------- import ---------- */
 async function importHistory() {
@@ -275,6 +321,10 @@ document.addEventListener('click', (e) => {
     case 'carry-one': doMove(el.dataset.id, el.dataset.date, todayISO()); return;
     case 'carry-all': { const l = carryList() || []; l.forEach((x) => moveTask(x.t.id, x.date, todayISO())); return toast(`Brought ${l.length} task${l.length > 1 ? 's' : ''} to today`); }
     case 'carry-dismiss': ls.set('pds.carry.' + todayISO(), '1'); return hooks.render();
+    case 'q-clear': S.q = ''; return hooks.render();
+    case 'q-hist': { const q = S.q; setView('history'); S.history.query = q; loadSearchPool(); return hooks.render(); }
+    case 'export-week': return exportWeek();
+    case 'export-all': return exportAll();
     case 'import': return importHistory();
     case 'import-dismiss': S.importDismissed = true; ls.set('pds.importDismissed', '1'); return hooks.render();
     case 'proj-done': { const pr = S.config.projects.find((p) => p.id === el.closest('.proj').dataset.pid); pr.done = !pr.done; return saveConfigSoon({ projects: S.config.projects }); }
@@ -314,6 +364,7 @@ document.addEventListener('change', (e) => {
 document.addEventListener('input', (e) => {
   const t = e.target;
   if (t.dataset && t.dataset.dnote) { clearTimeout(noteTimer); noteTimer = setTimeout(() => saveDayNote(t), 900); }
+  if (t.dataset && 'q' in t.dataset) { S.q = t.value; clearTimeout(t._d); t._d = setTimeout(() => hooks.render(), 150); }
   if (t.dataset && 'hsearch' in t.dataset) { S.history.query = t.value; if (t.value.trim().length >= 2) loadSearchPool(); clearTimeout(t._d); t._d = setTimeout(() => hooks.render(), 200); }
 });
 

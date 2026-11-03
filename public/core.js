@@ -30,7 +30,7 @@ export const S = {
   config: { routine: {}, projects: [], imported: true }, configLoaded: false,
   weeks: {},      // server copies, by Monday
   pending: [],    // [{w, op}] changes not yet confirmed by the server
-  editing: null, inserting: null, dragging: false,
+  editing: null, inserting: null, q: '', dragging: false,
   hideDone: ls.get('pds.hideDone') === '1',
   history: { weeks: [], oldest: null, loading: false, exhausted: false, query: '', filter: 'all', all: null, allLoading: false },
   importDismissed: ls.get('pds.importDismissed') === '1',

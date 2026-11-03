@@ -41,7 +41,7 @@ export function parseTime(raw) {
   if (m) { h = +m[1]; min = +m[2]; rest = m[4]; if (m[3]) { const p = m[3].toLowerCase(); if (p === 'pm' && h < 12) h += 12; if (p === 'am' && h === 12) h = 0; } }
   else if ((m = s.match(/^(\d{1,2})\s*(am|pm)\b\s*[-–:]?\s*(.*)$/i))) {
     h = +m[1]; min = 0; rest = m[3]; const p = m[2].toLowerCase(); if (p === 'pm' && h < 12) h += 12; if (p === 'am' && h === 12) h = 0;
-  } else if ((m = s.match(/^([01]\d|2[0-3])([0-5]\d)\s+(.*)$/))) { h = +m[1]; min = +m[2]; rest = m[3]; }
+  } else if ((m = s.match(/^([01]\d)([0-5]\d)\s+(.*)$/))) { h = +m[1]; min = +m[2]; rest = m[3]; }
   else return { time: '', text: s };
   if (h > 23 || min > 59 || !rest || !rest.trim()) return { time: '', text: s };
   return { time: String(h).padStart(2, '0') + ':' + String(min).padStart(2, '0'), text: rest.trim() };
