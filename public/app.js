@@ -29,7 +29,7 @@ function doRender() {
   if (liq) { const pct = S.pct || 0; liq.getBoundingClientRect(); liq.style.opacity = pct > 0 ? 1 : 0; liq.style.transform = `translateY(${liquidY(pct)}px)`; S.lastPct = pct; }
   document.querySelectorAll('header .tab').forEach((t) => t.setAttribute('aria-selected', t.dataset.view === S.view));
   $('#page').classList.toggle('wide', S.view === 'week');
-  document.title = (S.view === 'day' ? longDate(S.date) : S.view === 'week' ? 'Week' : 'History') + ' — Paul’s Daily Schedule';
+  document.title = (S.view === 'day' ? longDate(S.date) : S.view === 'week' ? 'Week' : 'History') + ' — Paul’s Dashboard';
   ensureData();
 }
 
@@ -354,7 +354,29 @@ function endDrag(cancel, e) {
 document.addEventListener('pointerup', (e) => endDrag(false, e));
 document.addEventListener('pointercancel', (e) => endDrag(true, e));
 
+/* ---------- date + weather (Open-Meteo, no key needed) — Varsity Lakes, Gold Coast ---------- */
+const WX = { 0: ['☀️', 'Clear'], 1: ['🌤️', 'Mostly clear'], 2: ['⛅', 'Partly cloudy'], 3: ['☁️', 'Cloudy'], 45: ['🌫️', 'Fog'], 48: ['🌫️', 'Fog'], 51: ['🌦️', 'Light drizzle'], 53: ['🌦️', 'Drizzle'], 55: ['🌧️', 'Drizzle'], 61: ['🌦️', 'Light rain'], 63: ['🌧️', 'Rain'], 65: ['🌧️', 'Heavy rain'], 80: ['🌦️', 'Showers'], 81: ['🌧️', 'Showers'], 82: ['⛈️', 'Heavy showers'], 95: ['⛈️', 'Thunderstorm'], 96: ['⛈️', 'Thunderstorm'], 99: ['⛈️', 'Thunderstorm'] };
+const wxInfo = (c) => WX[c] || (c >= 71 && c <= 77 ? ['🌨️', 'Snow'] : c >= 56 && c <= 67 ? ['🌧️', 'Rain'] : c >= 80 ? ['🌧️', 'Showers'] : ['🌡️', '']);
+function paintDate() { $('#nowDate').textContent = new Date().toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' }); }
+function paintWeather(w) {
+  const el = $('#wx'); if (!w) return;
+  const [icon, label] = wxInfo(w.code);
+  el.innerHTML = `<span class="wi" aria-hidden="true">${icon}</span><span class="wt">${Math.round(w.temp)}°C</span><small>${label}</small><small class="extra">· H ${Math.round(w.max)}° L ${Math.round(w.min)}°${w.rain != null ? ` · ${w.rain}% rain` : ''}</small>`;
+  el.title = `Feels like ${Math.round(w.feels)}°C — updated ${new Date(w.at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })}`;
+  el.hidden = false;
+}
+async function loadWeather() {
+  try {
+    const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=-28.08&longitude=153.41&current=temperature_2m,apparent_temperature,weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Australia%2FBrisbane&forecast_days=1');
+    const j = await r.json(); const c = j.current, d = j.daily;
+    const w = { temp: c.temperature_2m, feels: c.apparent_temperature, code: c.weather_code, max: d.temperature_2m_max[0], min: d.temperature_2m_min[0], rain: d.precipitation_probability_max[0], at: Date.now() };
+    ls.set('pds.wx', JSON.stringify(w)); paintWeather(w);
+  } catch (e) { try { const w = JSON.parse(ls.get('pds.wx') || 'null'); if (w && Date.now() - w.at < 3 * 3600e3) paintWeather(w); } catch (e2) {} }
+}
+
 /* ---------- start ---------- */
+paintDate(); loadWeather(); setInterval(loadWeather, 15 * 60 * 1000); setInterval(paintDate, 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { paintDate(); loadWeather(); } });
 $('#settingsBtn').innerHTML = I.gear;
 $('.bubbles').innerHTML = [...Array(10)].map((_, i) => `<span style="width:${10 + ((i * 7) % 24)}px;height:${10 + ((i * 7) % 24)}px;left:${(i * 11 + 4) % 100}%;animation-duration:${16 + ((i * 5) % 14)}s;animation-delay:-${(i * 3) % 14}s"></span>`).join('');
 let lastDay = todayISO();

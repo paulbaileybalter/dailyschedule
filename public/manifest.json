@@ -1,6 +1,6 @@
 {
-  "name": "Balter Brewing — Paul's Daily Schedule",
-  "short_name": "My Schedule",
+  "name": "Balter Brewing — Paul's Dashboard",
+  "short_name": "Dashboard",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

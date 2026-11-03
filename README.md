@@ -1,4 +1,4 @@
-# Balter Brewing — Paul's Daily Schedule Checklist
+# Balter Brewing — Paul's Dashboard
 
 A password-protected Cloudflare Worker. Static site in `public/`, API + password gate in `src/worker.js`, your data in Workers KV.
 
