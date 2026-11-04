@@ -278,3 +278,6 @@ i.mk{display:inline-grid;width:18px;height:18px;vertical-align:middle;transform:
 .popover .catdot{background:var(--c);width:24px;height:24px;border-radius:50%;padding:0;border:2px solid #fff;box-shadow:0 0 0 1px var(--line)}
 .popover .catdot:hover{background:var(--c);transform:scale(1.12)}
 .popover .catdot[aria-pressed=true]{box-shadow:0 0 0 2px #000}
+
+/* a colour chosen from the tile menu tints the whole tile (done / not-needed colours still win) */
+.row.picked:not(.done):not(.skip){background:color-mix(in srgb,var(--cat) 34%,#fff)}

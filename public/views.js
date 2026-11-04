@@ -40,7 +40,8 @@ export function rowHtml(t, date) {
   const col = CATS[catOf(t)].color;
   const editing = S.editing && S.editing.id === t.id && S.editing.date === date;
   const state = t.done ? 'done' : t.skip ? 'skip' : '';
-  const meeting = /meeting/i.test(t.text) ? ' meeting' : '';
+  const meeting = /meeting/i.test(t.text) ? ' meeting' : '' + '';
+  const picked = t.cat && t.cat !== 'proj' && CATS[t.cat] ? ' picked' : '';
   const qm = qMatch(t), qcls = qActive() ? (qm ? ' qhit' : ' qdim') : '';
   const noteHit = qm && t.note && t.note.toLowerCase().includes(S.q.trim().toLowerCase());
   const bits = [];
@@ -49,7 +50,7 @@ export function rowHtml(t, date) {
   const line = editing
     ? `<input id="edit" class="edit" data-keep="edit" value="${esc((t.time ? t.time + ' ' : '') + t.text)}" maxlength="320" aria-label="Edit task">`
     : `${t.time ? `<span class="time">${t.time}</span>` : ''}<span class="txt" data-act="edit" tabindex="0">${qActive() ? markIt(t.text, S.q) : esc(t.text)}</span>`;
-  return `<li class="row ${state}${meeting}${qcls}" data-id="${t.id}" data-date="${date}" style="--cat:${col}">
+  return `<li class="row ${state}${meeting}${picked}${qcls}" data-id="${t.id}" data-date="${date}" style="--cat:${col}">
     <span class="grip" aria-hidden="true" title="Drag to reorder, or drop on another day">${I.grip}</span>
     <div class="marks">
       <button class="mk xpa" data-act="xpa" aria-pressed="${t.done}" title="Done" aria-label="Done: ${esc(t.text)}">${I.check}</button>

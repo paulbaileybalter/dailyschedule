@@ -110,7 +110,7 @@ function taskMenu(btn) {
     { label: 'Move to another date…', fn: () => pickDate((d) => doMove(id, date, d), date) },
     { label: `Copy to ${shortDate(nwd)}`, fn: () => { addTask(nwd, { text: t.text, time: t.time, cat: t.cat, note: t.note }); toast(`Copied to ${shortDate(nwd)}`); } },
     { sep: true },
-    { cats: true, cur: catOf(t), fn: (c) => upd(date, id, { cat: c === catOf(t) ? '' : c }) },
+    { cats: true, cur: catOf(t), fn: (c) => upd(date, id, { cat: c === t.cat ? '' : c }) },
     { sep: true },
     { label: 'Delete task', danger: true, fn: () => deleteTask(date, id) },
   ].filter(Boolean));
