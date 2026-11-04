@@ -42,10 +42,12 @@ hooks.toast = (msg, action, fn) => {
 };
 const toast = hooks.toast;
 
+// The four tile colours offered in the menu (site palette): green, orange, yellow, blue.
+const PICK = [['stock', 'Green'], ['plan', 'Orange'], ['meet', 'Yellow'], ['gen', 'Blue']];
 const menuEl = $('#menu');
 function openMenu(anchor, items) {
   menuEl.innerHTML = items.map((it, i) => it.sep ? '<hr>' : it.cats
-    ? `<div class="catrow">Colour ${Object.entries(CATS).map(([k, c]) => `<button class="catdot" style="--c:${c.color}" title="${c.name}" aria-pressed="${it.cur === k}" data-cat="${k}"></button>`).join('')}</div>`
+    ? `<div class="catrow">Colour ${PICK.map(([k, label]) => `<button class="catdot" style="--c:${CATS[k].color}" title="${label}" aria-label="${label}" aria-pressed="${it.cur === k}" data-cat="${k}"></button>`).join('')}</div>`
     : `<button class="${it.danger ? 'danger' : ''}" data-i="${i}">${esc(it.label)}</button>`).join('');
   menuEl.hidden = false;
   const r = anchor.getBoundingClientRect(), m = menuEl.getBoundingClientRect();
@@ -108,7 +110,7 @@ function taskMenu(btn) {
     { label: 'Move to another date…', fn: () => pickDate((d) => doMove(id, date, d), date) },
     { label: `Copy to ${shortDate(nwd)}`, fn: () => { addTask(nwd, { text: t.text, time: t.time, cat: t.cat, note: t.note }); toast(`Copied to ${shortDate(nwd)}`); } },
     { sep: true },
-    { cats: true, cur: catOf(t), fn: (c) => upd(date, id, { cat: c }) },
+    { cats: true, cur: catOf(t), fn: (c) => upd(date, id, { cat: c === catOf(t) ? '' : c }) },
     { sep: true },
     { label: 'Delete task', danger: true, fn: () => deleteTask(date, id) },
   ].filter(Boolean));
