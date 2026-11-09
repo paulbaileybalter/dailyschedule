@@ -159,7 +159,7 @@ export function viewWeek() {
     <button class="btn ghost" data-act="week-step" data-n="7" aria-label="Next week">${I.right}</button>
     ${thisWk ? '' : '<button class="btn small" data-act="week-now">This week</button>'}
     <span class="sp"></span>${legend()}${searchBar(ws, days)}<span class="count">${done} / ${total} done</span>
-    <button class="btn small" data-act="export-week" title="Download this week as a spreadsheet (CSV)">Export CSV</button>
+    <button class="btn small" data-act="export-week" title="Download this week as a coloured Excel spreadsheet">Export Excel</button>
     <button class="btn small ghost" data-act="weekend" aria-pressed="${S.showWeekend}">${S.showWeekend ? 'Hide' : 'Show'} weekend</button>
     <button class="btn small ghost" data-act="hidedone">${S.hideDone ? 'Show completed' : 'Hide completed'}</button></div>
   ${importBanner()}${thisWk ? carryBanner() : ''}

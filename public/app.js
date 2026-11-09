@@ -2,6 +2,7 @@
 import { CATS, parseTime } from '/ops.js';
 import { S, hooks, esc, uid, todayISO, shortDate, longDate, nextWD, prevWD, addDays, mondayOf, dowOf, isWeekend, dayOf, findTask, dayStats, catOf,
   api, docFor, dispatch, upd, addTask, moveTask, deleteTask, ensureData, ensureWeek, loadConfig, saveConfigSoon, flush, startPolling, setStatus, touch, carryList, ls, scheduleFlush } from '/core.js';
+import { loadExcelJS, addWeekSheet, addAllTasksSheet, downloadWorkbook } from '/xlsx.js';
 import { viewDay, viewWeek, viewHistory, liquidY, I, legend } from '/views.js';
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -188,6 +189,8 @@ function settingsMenu(btn) {
     { label: 'Edit weekly routine…', fn: openRoutine },
     { label: 'Change password…', fn: openPassword },
     !S.config.imported && { label: 'Import spreadsheet history…', fn: importHistory },
+    { label: 'Export this week (Excel)', fn: exportWeekXlsx },
+    { label: 'Export all history (Excel)', fn: exportAllXlsx },
     { label: 'Export this week (CSV)', fn: exportWeek },
     { label: 'Export all history (CSV)', fn: exportAll },
     { label: 'Print', fn: () => window.print() },
@@ -237,6 +240,34 @@ async function exportAll() {
   const body = rows.slice(1).sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
   downloadCsv(`Task Dashboard — all history.csv`, [rows[0], ...body]);
   toast(`Exported ${body.length} tasks`);
+}
+const wcName = (mon) => `WC ${mon.slice(8)}.${mon.slice(5, 7)}.${mon.slice(2, 4)}`;
+async function exportWeekXlsx() {
+  try {
+    toast('Building spreadsheet…'); await loadExcelJS();
+    const ws = S.weekStart, days = {};
+    for (let i = 0; i < 7; i++) { const d = addDays(ws, i); days[d] = { tasks: dayOf(d).tasks, note: dayOf(d).note }; }
+    const wb = new ExcelJS.Workbook(); wb.creator = 'Task Dashboard';
+    addWeekSheet(wb, wcName(ws), { start: ws, days }, S.config.projects, todayISO());
+    await downloadWorkbook(wb, `Task Dashboard ${wcName(ws)}.xlsx`); toast('Week exported');
+  } catch (e) { toast('Export failed — ' + e.message); }
+}
+async function exportAllXlsx() {
+  try {
+    toast('Building spreadsheet…'); await loadExcelJS();
+    const weeks = []; let to = mondayOf(todayISO()), empty = 0;
+    for (let page = 0; page < 6 && empty < 2; page++) {
+      const r = await api(`/api/weeks?to=${to}&n=40`); if (!r.ok) return toast('Export failed — please try again');
+      for (const { start, doc } of r.data.weeks) { const d = S.weeks[start] !== undefined ? dayOfWeekDoc(start) : doc; if (Object.values(d.days).some((x) => x.tasks.length)) weeks.push({ start, days: d.days }); }
+      empty = r.data.weeks.every((x) => !Object.values(x.doc.days).some((d) => d.tasks.length)) ? empty + 1 : 0;
+      to = addDays(to, -280);
+    }
+    weeks.sort((a, b) => (a.start < b.start ? -1 : 1));
+    const wb = new ExcelJS.Workbook(); wb.creator = 'Task Dashboard';
+    const n = addAllTasksSheet(wb, weeks);
+    weeks.slice().reverse().forEach((w) => addWeekSheet(wb, wcName(w.start), w, w.start === mondayOf(todayISO()) ? S.config.projects : [], todayISO()));
+    await downloadWorkbook(wb, 'Task Dashboard — all history.xlsx'); toast(`Exported ${n} tasks across ${weeks.length} weeks`);
+  } catch (e) { toast('Export failed — ' + e.message); }
 }
 const dayOfWeekDoc = (w) => docFor(w);
 
@@ -364,7 +395,7 @@ document.addEventListener('click', (e) => {
     case 'carry-dismiss': ls.set('pds.carry.' + todayISO(), '1'); return hooks.render();
     case 'q-clear': S.q = ''; return hooks.render();
     case 'q-hist': { const q = S.q; setView('history'); S.history.query = q; loadSearchPool(); return hooks.render(); }
-    case 'export-week': return exportWeek();
+    case 'export-week': return exportWeekXlsx();
     case 'export-all': return exportAll();
     case 'import': return importHistory();
     case 'import-dismiss': S.importDismissed = true; ls.set('pds.importDismissed', '1'); return hooks.render();
