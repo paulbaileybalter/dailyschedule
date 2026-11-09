@@ -172,6 +172,7 @@ async function loadConfig(env) {
     routine: c.routine ? cleanRoutine(c.routine) : DEFAULT_ROUTINE,
     projects: c.projects ? cleanProjects(c.projects) : DEFAULT_PROJECTS,
     imported: !!c.imported,
+    purged: Array.isArray(c.purged) ? c.purged.filter((x) => typeof x === 'string').slice(0, 20) : [],
   };
 }
 async function loadWeek(env, monday) {
@@ -188,6 +189,7 @@ async function handleConfig(request, env, url) {
       routine: body.data.routine ? cleanRoutine(body.data.routine) : cur.routine,
       projects: body.data.projects ? cleanProjects(body.data.projects) : cur.projects,
       imported: cur.imported || !!body.data.imported,
+      purged: cur.purged,
     };
     await env.SCHEDULE.put('config', JSON.stringify(next));
     return json(next);
@@ -268,6 +270,42 @@ async function handleImport(request, env, url) {
   return json({ written, skipped });
 }
 
+// POST /api/purge { key, from:'YYYY-MM-DD' } — one-off removal of retired Green Beacon tasks from <from> onwards (past days are left alone), plus the routine and projects.
+const PURGES = { 'green-beacon-fwd': /green\s*beacon/i };
+async function handlePurge(request, env, url) {
+  if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
+  const body = await readJson(request, url, 1000);
+  if (body.error) return body.error;
+  const key = String(body.data.key || ''), re = PURGES[key];
+  if (!re) return json({ error: 'Unknown clean-up' }, 400);
+  const from = validDate(String(body.data.from || '')) ? String(body.data.from) : null;
+  if (!from) return json({ error: 'Bad date' }, 400);
+  let removed = 0, cursor;
+  do {
+    const page = await env.SCHEDULE.list({ prefix: 'wk:', cursor });
+    for (const k of page.keys) {
+      if (addDays(k.name.slice(3), 6) < from) continue; // week is entirely in the past
+      const doc = normaliseWeek(await env.SCHEDULE.get(k.name, 'json'));
+      let n = 0;
+      for (const [date, day] of Object.entries(doc.days)) {
+        if (date < from) continue;
+        const keep = day.tasks.filter((t) => !re.test(t.text));
+        n += day.tasks.length - keep.length; day.tasks = keep;
+      }
+      if (n) { doc.ver = crypto.randomUUID(); await env.SCHEDULE.put(k.name, JSON.stringify(doc)); removed += n; }
+    }
+    cursor = page.list_complete ? undefined : page.cursor;
+  } while (cursor);
+  const cur = await loadConfig(env), raw = await env.SCHEDULE.get('config', 'json');
+  const next = { ...cur, purged: [...new Set([...cur.purged, key])] };
+  if (raw) {
+    for (const d of Object.keys(next.routine)) next.routine[d] = next.routine[d].filter((t) => !re.test(t.text));
+    next.projects = next.projects.filter((t) => !re.test(t.text));
+  }
+  await env.SCHEDULE.put('config', JSON.stringify(next));
+  return json({ removed });
+}
+
 async function handlePassword(request, env, url, auth) {
   if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
   const body = await readJson(request, url, 2000);
@@ -289,6 +327,7 @@ async function handleApi(request, env, url, auth) {
     const p = url.pathname;
     if (p === '/api/config') return await handleConfig(request, env, url);
     if (p === '/api/weeks') return await handleWeeks(env, url);
+    if (p === '/api/purge') return await handlePurge(request, env, url);
     if (p === '/api/import') return await handleImport(request, env, url);
     if (p === '/api/password') return await handlePassword(request, env, url, auth);
     const m = p.match(/^\/api\/week\/(\d{4}-\d{2}-\d{2})$/);

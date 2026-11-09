@@ -16,7 +16,6 @@ export const DEFAULT_ROUTINE = {
   {"id": "m1-13", "text": "Pallet Wrap count & Fromm PO"},
   {"id": "m1-14", "text": "Export Pallets - Order 120 when below 50"},
   {"id": "m1-15", "text": "Meeting - Send Email + Production Plan Attainment", "time": "09:00"},
-  {"id": "m1-16", "text": "Green Beacon Hops count"},
   {"id": "m1-17", "text": "Gin Fizz & Lagerita count (by box) & PO"},
   {"id": "m1-18", "text": "Check LBB for plan changes - (adjust cans, raw materials)"},
   {"id": "m1-19", "text": "Meeting", "time": "13:30"}
@@ -75,7 +74,6 @@ export const DEFAULT_ROUTINE = {
   {"id": "m5-07", "text": "Bluestone Yeast count & PO"},
   {"id": "m5-08", "text": "Export Pallet Check & PO"},
   {"id": "m5-09", "text": "Meeting - Send Email", "time": "09:00"},
-  {"id": "m5-10", "text": "Green Beacon Hops count and order"},
   {"id": "m5-11", "text": "Check LBB for plan changes - (adjust cans, raw materials)"},
   {"id": "m5-12", "text": "Meeting", "time": "13:30"},
   {"id": "m5-13", "text": "NCR warehouse"},

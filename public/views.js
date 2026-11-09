@@ -17,6 +17,10 @@ const GLASS_BOTTOM = 158, GLASS_TOP = 36;
 export const liquidY = (pct) => GLASS_BOTTOM - pct * (GLASS_BOTTOM - GLASS_TOP);
 const SMILE = 'M136.3,70.4l-9.4-9.4c-1.6-1.6-4.3-1.6-6,0-1.6,1.6-1.6,4.3,0,6l2.3,2.3c-9.6,13.2-25.2,21.7-42.7,21.7s-33.1-8.6-42.7-21.8l2.3-2.3c1.6-1.6,1.6-4.3,0-6-1.6-1.6-4.3-1.6-6,0l-9.4,9.4c-1.6,1.6-1.6,4.3,0,6,.8.8,1.9,1.2,3,1.2s2.2-.4,3-1.2l1.1-1.1c11.2,14.7,28.9,24.2,48.7,24.2s37.5-9.5,48.7-24.2l1.1,1.1c.8.8,1.9,1.2,3,1.2s2.2-.4,3-1.2c1.6-1.6,1.6-4.3,0-6';
 
+export function doneLabel(ms, date) {
+  const d = new Date(ms), iso = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  return (iso === date ? '' : d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' }) + ' ') + hm(ms);
+}
 export function glass(pct, full) {
   return `<svg class="glass ${full ? 'full' : ''}" viewBox="0 0 120 172" role="img" aria-label="Pint glass that fills as tasks are completed">
   <defs><clipPath id="gclip"><path d="M16 16H104L94.5 154Q94 158 90 158H30Q26 158 25.5 154Z"/></clipPath>
@@ -45,12 +49,12 @@ export function rowHtml(t, date) {
   const qm = qMatch(t), qcls = qActive() ? (qm ? ' qhit' : ' qdim') : '';
   const noteHit = qm && t.note && t.note.toLowerCase().includes(S.q.trim().toLowerCase());
   const bits = [];
-  if (t.done && t.doneAt) bits.push(`<span>Done ${hm(t.doneAt)}</span>`);
+  if (t.done) bits.push(`<button class="donetime" data-act="donetime" title="Change when this was completed">${t.doneAt ? 'Done ' + doneLabel(t.doneAt, date) : 'Done · set time'}</button>`);
   if (t.skip) bits.push('<span>Not needed</span>');
   const line = editing
     ? `<input id="edit" class="edit" data-keep="edit" value="${esc((t.time ? t.time + ' ' : '') + t.text)}" maxlength="320" aria-label="Edit task">`
     : `${t.time ? `<span class="time">${t.time}</span>` : ''}<span class="txt" data-act="edit" tabindex="0">${qActive() ? markIt(t.text, S.q) : esc(t.text)}</span>`;
-  return `<li class="row ${state}${meeting}${picked}${qcls}" data-id="${t.id}" data-date="${date}" style="--cat:${col}">
+  return `<li class="row ${state}${meeting}${picked}${t.urgent ? ' urgent' : ''}${qcls}" data-id="${t.id}" data-date="${date}" style="--cat:${col}">
     <span class="grip" aria-hidden="true" title="Drag to reorder, or drop on another day">${I.grip}</span>
     <div class="marks">
       <button class="mk xpa" data-act="xpa" aria-pressed="${t.done}" title="Done" aria-label="Done: ${esc(t.text)}">${I.check}</button>
@@ -59,6 +63,7 @@ export function rowHtml(t, date) {
     <div class="body"><div class="line">${line}</div>
       <input class="tnote-in${noteHit ? ' qnote' : ''}" data-keep="n-${date}-${t.id}" data-note="${t.id}" data-date="${date}" placeholder="Add a note…" value="${esc(t.note)}" maxlength="500" aria-label="Note for: ${esc(t.text)}">
       ${bits.length ? `<div class="sub">${bits.join('')}</div>` : ''}</div>
+    <button class="urg" data-act="urgent" aria-pressed="${!!t.urgent}" title="${t.urgent ? 'Urgent — click to clear' : 'Mark urgent'}" aria-label="Urgent: ${esc(t.text)}">!</button>
     <button class="kebab" data-act="menu" aria-label="Task options">${I.dots}</button>
     <button class="plus" data-act="ins" title="Add a task underneath" aria-label="Add a task below: ${esc(t.text)}">${I.plus}</button></li>`;
 }

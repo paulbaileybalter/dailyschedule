@@ -305,3 +305,17 @@ i.mk{display:inline-grid;width:18px;height:18px;vertical-align:middle;transform:
 @media(max-width:900px){.daynav{flex-wrap:wrap}.dtools{order:3;flex-basis:100%;justify-content:flex-start}}
 
 .page.fit{padding-bottom:14px}
+
+.donetime{border:0;background:transparent;padding:0;font:inherit;color:inherit;cursor:pointer;border-radius:4px;text-decoration:underline dotted rgba(0,0,0,.35);text-underline-offset:3px}
+.donetime:hover{background:rgba(0,0,0,.07)}
+
+/* urgent flag */
+.urg{flex:none;width:22px;height:22px;border-radius:50%;border:1.5px solid var(--line);background:#fff;color:var(--muted);font:700 13px/1 var(--font);padding:0;display:grid;place-items:center;opacity:0;transition:opacity .15s,background .15s}
+.row:hover .urg,.urg:focus-visible{opacity:1}
+.urg:hover{border-color:#E5484D;color:#E5484D}
+.urg[aria-pressed=true]{opacity:1;background:#E5484D;border-color:#E5484D;color:#fff}
+.row.urgent::before{background:#E5484D;width:6px}
+.row.urgent .txt{font-weight:700}
+.row.urgent:not(.done):not(.skip){box-shadow:inset 0 0 0 1.5px rgba(229,72,77,.55)}
+.row.urgent.drop-before{box-shadow:0 -3px 0 var(--teal)}.row.urgent.drop-after{box-shadow:0 3px 0 var(--teal)}
+@media print{.urg:not([aria-pressed=true]){display:none}}

@@ -126,17 +126,31 @@ function taskMenu(btn) {
   const row = btn.closest('.row'), id = row.dataset.id, date = row.dataset.date, t = findTask(date, id); if (!t) return;
   const nwd = nextWD(date), today = todayISO();
   openMenu(btn, [
+    { label: t.urgent ? 'Clear urgent' : 'Mark urgent', fn: () => upd(date, id, { urgent: !t.urgent }) },
     { label: 'Edit text or time', fn: () => { S.editing = { id, date }; hooks.render(); } },
     { sep: true },
     date !== today && { label: 'Move to today', fn: () => doMove(id, date, today) },
     { label: `Move to ${shortDate(nwd)}`, fn: () => doMove(id, date, nwd) },
     { label: 'Move to another date…', fn: () => pickDate((d) => doMove(id, date, d), date) },
     { label: `Copy to ${shortDate(nwd)}`, fn: () => { addTask(nwd, { text: t.text, time: t.time, cat: t.cat, note: t.note }); toast(`Copied to ${shortDate(nwd)}`); } },
+    t.done && { label: 'Change completed time…', fn: () => editDoneTime(date, id) },
     { sep: true },
     { cats: true, cur: catOf(t), fn: (c) => upd(date, id, { cat: c === t.cat ? '' : c }) },
     { sep: true },
     { label: 'Delete task', danger: true, fn: () => deleteTask(date, id) },
   ].filter(Boolean));
+}
+function editDoneTime(date, id) {
+  const t = findTask(date, id); if (!t || !t.done) return;
+  const base = t.doneAt ? new Date(t.doneAt) : new Date(date + 'T12:00:00');
+  const p = (n) => String(n).padStart(2, '0');
+  const inp = document.createElement('input'); inp.type = 'datetime-local';
+  inp.value = `${base.getFullYear()}-${p(base.getMonth() + 1)}-${p(base.getDate())}T${p(base.getHours())}:${p(base.getMinutes())}`;
+  Object.assign(inp.style, { position: 'fixed', left: '50%', top: '30%', opacity: 0, pointerEvents: 'none' });
+  document.body.appendChild(inp);
+  inp.addEventListener('change', () => { const ms = new Date(inp.value).getTime(); if (Number.isFinite(ms)) upd(date, id, { doneAt: ms }); inp.remove(); });
+  inp.addEventListener('blur', () => setTimeout(() => inp.remove(), 300));
+  try { inp.showPicker(); } catch (e) { inp.style.opacity = 1; inp.style.pointerEvents = 'auto'; inp.focus(); }
 }
 function doMove(id, from, to, opts) {
   const idx = dayOf(from).tasks.findIndex((t) => t.id === id);
@@ -190,7 +204,7 @@ function downloadCsv(name, rows) {
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
 }
 const dmy = (iso) => iso.slice(8) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4);
-const cellText = (t) => (t.done ? '✓ ' : t.skip ? '✗ ' : '') + (t.time ? t.time.replace(':', '') + ' ' : '') + t.text + (t.note ? ' — ' + t.note : '');
+const cellText = (t) => (t.urgent ? '! ' : '') + (t.done ? '✓ ' : t.skip ? '✗ ' : '') + (t.time ? t.time.replace(':', '') + ' ' : '') + t.text + (t.note ? ' — ' + t.note : '');
 // Same shape as your spreadsheet: Monday–Friday columns with dates underneath, then Ongoing / Projects.
 function exportWeek() {
   const ws = S.weekStart;
@@ -209,13 +223,13 @@ function exportWeek() {
 // One row per task, every week on record.
 async function exportAll() {
   toast('Preparing export…');
-  const rows = [['Date', 'Day', 'Time', 'Task', 'Status', 'Done at', 'Note', 'Day notes']]; let to = mondayOf(todayISO()), empty = 0;
+  const rows = [['Date', 'Day', 'Time', 'Task', 'Status', 'Urgent', 'Done at', 'Note', 'Day notes']]; let to = mondayOf(todayISO()), empty = 0;
   for (let page = 0; page < 6 && empty < 2; page++) {
     const r = await api(`/api/weeks?to=${to}&n=40`); if (!r.ok) return toast('Export failed — please try again');
     for (const { start, doc } of r.data.weeks) {
       const d = S.weeks[start] !== undefined ? dayOfWeekDoc(start) : doc;
       for (const [date, day] of Object.entries(d.days)) for (const t of day.tasks)
-        rows.push([date, new Date(date + 'T00:00:00Z').toLocaleDateString('en-AU', { weekday: 'long', timeZone: 'UTC' }), t.time, t.text, t.done ? 'Done' : t.skip ? 'Not needed' : 'Open', t.doneAt ? new Date(t.doneAt).toLocaleString('en-AU') : '', t.note, '']);
+        rows.push([date, new Date(date + 'T00:00:00Z').toLocaleDateString('en-AU', { weekday: 'long', timeZone: 'UTC' }), t.time, t.text, t.done ? 'Done' : t.skip ? 'Not needed' : 'Open', t.urgent ? 'Urgent' : '', t.doneAt ? new Date(t.doneAt).toLocaleString('en-AU') : '', t.note, '']);
     }
     empty = r.data.weeks.every((x) => !Object.values(x.doc.days).some((d) => d.tasks.length)) ? empty + 1 : 0;
     to = addDays(to, -280);
@@ -330,6 +344,8 @@ document.addEventListener('click', (e) => {
     case 'pickdate': return pickDate(goDay, S.date);
     case 'xpa': { const t = findTask(row.dataset.date, row.dataset.id); return t && upd(row.dataset.date, t.id, { done: !t.done }); }
     case 'hazy': { const t = findTask(row.dataset.date, row.dataset.id); return t && upd(row.dataset.date, t.id, { skip: !t.skip }); }
+    case 'urgent': { const t = findTask(row.dataset.date, row.dataset.id); return t && upd(row.dataset.date, t.id, { urgent: !t.urgent }); }
+    case 'donetime': return editDoneTime(row.dataset.date, row.dataset.id);
     case 'edit': if (!S.editing) { S.editing = { id: row.dataset.id, date: row.dataset.date }; hooks.render(); } return;
     case 'menu': return taskMenu(el);
     case 'daymenu': return dayMenu(el);
@@ -461,4 +477,12 @@ $('.bubbles').innerHTML = [...Array(10)].map((_, i) => `<span style="width:${10 
 let lastDay = todayISO();
 setInterval(() => { const n = todayISO(); if (n !== lastDay) { if (S.date === lastDay) S.date = n; lastDay = n; hooks.render(); } }, 60000);
 hooks.render(); startPolling();
-(async () => { await loadConfig(); if (S.pending.length) flush(); })();
+(async () => {
+  await loadConfig();
+  // one-off clean-up: Green Beacon is retired, so remove it from the routine, projects and today onwards (past days keep their history)
+  if (S.configLoaded && !(S.config.purged || []).includes('green-beacon-fwd')) {
+    const r = await api('/api/purge', { method: 'POST', body: { key: 'green-beacon-fwd', from: todayISO() } });
+    if (r.ok && r.data.removed) { location.reload(); return; }
+  }
+  if (S.pending.length) flush();
+})();

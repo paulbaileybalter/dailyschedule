@@ -3,7 +3,7 @@
 //
 // Data model (one KV entry per week, key "wk:<Monday>"):
 //   { ver, days: { "YYYY-MM-DD": { tasks: [Task], note: "", seeded: bool } } }
-//   Task = { id, text, done, skip, doneAt, time:"HH:MM"|"", cat, src, note }
+//   Task = { id, text, done, skip, doneAt, time:"HH:MM"|"", cat, urgent, src, note }
 //     done  = ticked off          skip = "not needed today" (counts as resolved)
 //     src   = routine item id (or "p:<projectId>") the task came from, "" for ad-hoc tasks
 //
@@ -86,6 +86,7 @@ export function cleanTask(t) {
     doneAt: t.done ? doneAt : null,
     time,
     cat: CATS[t.cat] ? t.cat : '',
+    urgent: !!t.urgent,
     src: clean(t.src, 60),
     note: clean(t.note, 500),
   };
@@ -150,11 +151,13 @@ export function applyOps(doc, ops, ctx) {
         if ('time' in s) next.time = s.time;
         if ('cat' in s) next.cat = s.cat;
         if ('note' in s) next.note = s.note;
+        if ('urgent' in s) next.urgent = !!s.urgent;
         if ('done' in s) {
           next.done = !!s.done;
           next.doneAt = next.done ? (Number.isFinite(op.at) ? op.at : Date.now()) : null;
           if (next.done) next.skip = false;
         }
+        if ('doneAt' in s && next.done && Number.isFinite(s.doneAt) && s.doneAt > 0) next.doneAt = Math.round(s.doneAt);
         if ('skip' in s) {
           next.skip = !!s.skip;
           if (next.skip) { next.done = false; next.doneAt = null; }
