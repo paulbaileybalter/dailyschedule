@@ -22,7 +22,7 @@ The KV namespace is the `SCHEDULE` binding in `wrangler.jsonc`. Recent Wrangler 
 - **Left in the fermenter**: unfinished one-off tasks from the last week are offered on today's page - bring them forward in one click.
 - **Week**: Mon-Fri columns like your spreadsheet; drag tasks between days.
 - **History**: every week with progress, "Show what I did", and search across the last 40 weeks.
-- **Ongoing brews** = your Ongoing / Projects column; `+ Day` adds one to the day you're viewing. **Brewer's log** = a notes box per day.
+- **Projects** = your Ongoing / Projects column; `+ Day` adds one to the day you're viewing. **Brewer's log** = a notes box per day.
 - Gear -> **Edit weekly routine**: the Mon-Fri lists (from your Master tab) that appear automatically the first time you open a day.
 - First visit: click **Import history** to bring in the 32 weeks from your spreadsheet (never overwrites existing work).
 - Keyboard: `←` `→` change day, `t` jumps to today. Works offline for a while - changes sync when you're back.

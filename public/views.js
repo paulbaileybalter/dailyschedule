@@ -87,12 +87,12 @@ export const importBanner = () => (!S.config.imported && S.configLoaded && !S.im
 const visibleTasks = (day) => day.tasks.filter((t) => !(S.hideDone && (t.done || t.skip)));
 // The task list for one day, with the "new task" box opened under whichever tile's + was clicked.
 const draftRow = (date) => `<li class="row draft"><input id="ins" class="edit" data-keep="ins" data-ins="${date}" placeholder="New task… e.g. 1330 Team catch-up" maxlength="300" aria-label="New task"></li>`;
-function listHtml(day, date) {
+function listHtml(day, date, cls = '') {
   const ins = S.inserting && S.inserting.date === date ? S.inserting.after : undefined;
   const out = visibleTasks(day).map((t) => rowHtml(t, date) + (ins === t.id ? draftRow(date) : '')).join('');
   const tail = ins === '__end' ? draftRow(date) : '';
   const empty = !day.tasks.length && !tail ? `<li class="addfirst"><button class="btn small ghost" data-act="ins-end" data-date="${date}">${I.plus} Add a task</button></li>` : '';
-  return `<ul class="list" data-zone="${date}">${out}${tail}${empty}</ul>`;
+  return `<ul class="list ${cls}" data-zone="${date}">${out}${tail}${empty}</ul>`;
 }
 
 /* ---------- DAY ---------- */
@@ -111,18 +111,19 @@ export function viewDay() {
     <div class="head"><h3>Tasks</h3><span class="count">${st.done + st.skip} / ${st.total}</span><span class="sp"></span>
       <button class="btn small ghost" data-act="hidedone" aria-pressed="${S.hideDone}">${S.hideDone ? 'Show completed' : 'Hide completed'}</button>
       <button class="btn small ghost icon" data-act="daymenu" aria-label="Day options" style="width:32px;height:32px">${I.dots}</button></div>
-    ${!loaded ? '<div class="empty">Loading…</div>' : `${listHtml(day, date)}
+    <div class="beerbar" style="margin:0 16px 10px;height:6px"><i style="width:${pct * 100}%"></i></div>
+    ${!loaded ? '<div class="empty">Loading…</div>' : `${listHtml(day, date, 'multi')}
       ${!day.tasks.length ? '<div class="empty">Nothing on tap for this day yet.</div>' : hidden && !list.length ? `<div class="empty">All ${hidden} tasks are complete.</div>` : ''}`}
 </section>`;
 
   const projs = S.config.projects;
   const side = `<aside class="stack">
-    <section class="card c-purple"><div class="bar"></div><div class="head"><h3>Ongoing brews</h3><span class="muted" style="font-size:12px">projects</span></div>
+    <section class="card c-purple"><div class="bar"></div><div class="head"><h3>Projects</h3><span class="muted" style="font-size:12px">ongoing</span></div>
       ${projs.map((pr) => { const on = day.tasks.some((t) => t.src === 'p:' + pr.id);
         return `<div class="proj ${pr.done ? 'done' : ''}" data-pid="${pr.id}"><button class="chk" role="checkbox" aria-checked="${pr.done}" data-act="proj-done" aria-label="Mark project complete">${pr.done ? I.check : ''}</button>
         <span class="ptxt">${esc(pr.text)}</span><button class="btn small ${on ? 'ghost' : ''}" data-act="proj-today" ${on || pr.done ? 'disabled' : ''}>${on ? 'On list ✓' : '+ Day'}</button>
         <button class="kebab" data-act="proj-menu" aria-label="Project options">${I.dots}</button></div>`; }).join('')}
-      <div class="addrow"><input data-keep="proj-add" data-pa placeholder="Add an ongoing project…" maxlength="300" aria-label="Add project"><button class="btn small teal" data-act="proj-add">Add</button></div></section>
+      <div class="addrow"><input data-keep="proj-add" data-pa placeholder="Add a project…" maxlength="300" aria-label="Add project"><button class="btn small teal" data-act="proj-add">Add</button></div></section>
     <section class="card c-sky"><div class="bar"></div><div class="head"><h3>Brewer’s log</h3><span class="muted" style="font-size:12px">notes for the day</span></div>
       <textarea class="notes" data-keep="dnote" data-dnote="${date}" placeholder="Handover notes, decisions, things to remember…" maxlength="2000" aria-label="Notes for the day">${esc(day.note)}</textarea></section></aside>`;
 
@@ -130,15 +131,8 @@ export function viewDay() {
     <button class="nbtn" data-zone="${p}" data-act="goto" data-date="${p}" aria-label="Previous day">${I.left}<span>${shortDate(p)}</span></button>
     <div class="title"><h2>${longDate(date)}</h2>${isToday ? '<span class="tag">Today</span>' : `<button class="tag alt" data-act="today" style="border:0;cursor:pointer">Back to today</button>`}
       <button class="btn small ghost icon" data-act="pickdate" aria-label="Pick a date" style="width:30px;height:30px;vertical-align:middle">${I.cal}</button></div>
+    <div class="dtools">${legend()}${searchBar(date, [date])}</div>
     <button class="nbtn" data-zone="${n}" data-act="goto" data-date="${n}" aria-label="Next day"><span>${shortDate(n)}</span>${I.right}</button></div>
-  <div style="display:flex;justify-content:flex-end;align-items:center;gap:14px;margin-bottom:12px">${legend()}${searchBar(date, [date])}</div>
-  <section class="card c-gold"><div class="bar"></div><div class="hero-body">${glass(pct, allDone)}
-    <div class="hero-main"><div class="kicker">${isToday ? 'On tap today' : 'On tap'}</div>
-      <div class="counter"><span class="big">${st.done}<small>/${st.total}</small></span><span class="lbl">tasks done</span>
-        <span class="status ${allDone ? 'ok' : ''}">${allDone ? 'Pint’s full' : st.open + ' to go'}</span></div>
-      <div class="beerbar"><i style="width:${pct * 100}%"></i></div>
-      <div class="chips">${st.skip ? `<span class="chip">${st.skip} not needed</span>` : ''}${next ? `<span class="chip next">Next up · ${next.time} ${esc(next.text.slice(0, 40))}</span>` : ''}</div></div></div></section>
-  ${allDone ? `<div class="done-banner"><svg viewBox="0 0 161 161" width="30" height="30"><path fill="#47D7AC" stroke="none" d="${SMILE}"/></svg>Cheers — everything for this day is sorted.</div>` : ''}
   ${importBanner()}${isToday ? carryBanner() : ''}<div class="cols">${tasksCard}${side}</div>`;
 }
 

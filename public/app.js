@@ -28,10 +28,33 @@ function doRender() {
   const liq = $('#liquid');
   if (liq) { const pct = S.pct || 0; liq.getBoundingClientRect(); liq.style.opacity = pct > 0 ? 1 : 0; liq.style.transform = `translateY(${liquidY(pct)}px)`; S.lastPct = pct; }
   document.querySelectorAll('header .tab').forEach((t) => t.setAttribute('aria-selected', t.dataset.view === S.view));
-  $('#page').classList.toggle('wide', S.view === 'week');
+  $('#page').classList.toggle('wide', S.view !== 'history');
+  $('#page').classList.toggle('fit', S.view === 'day');
+  fitColumns();
   document.title = 'Task Dashboard - ' + { day: 'Day', week: 'Week', history: 'History' }[S.view];
   ensureData();
 }
+
+/* ---------- Day view: flow the tasks into as many columns as it takes to avoid scrolling ---------- */
+function fitColumns() {
+  const ul = $('.list.multi'); if (!ul) return;
+  const side = $('.cols > aside');
+  if (side) { // sidebar scrolls inside itself so the page never has to
+    const top = side.getBoundingClientRect().top + scrollY;
+    side.style.maxHeight = innerWidth > 900 ? Math.max(260, innerHeight - top - 14) + 'px' : '';
+    side.style.overflowY = innerWidth > 900 ? 'auto' : '';
+  }
+  if (!ul.querySelector('.row')) { ul.style.columnCount = ''; return; }
+  const maxCols = Math.max(1, Math.min(6, Math.floor(ul.clientWidth / 225)));
+  let c = 1;
+  for (; c <= maxCols; c++) {
+    ul.style.columnCount = c;
+    if (ul.getBoundingClientRect().bottom <= innerHeight - 14) break;
+  }
+  ul.style.columnCount = Math.min(c, maxCols);
+}
+let fitTimer = 0;
+window.addEventListener('resize', () => { clearTimeout(fitTimer); fitTimer = setTimeout(fitColumns, 120); });
 
 /* ---------- toast, menu, date picker ---------- */
 let toastTimer = 0;
@@ -390,12 +413,15 @@ document.addEventListener('pointermove', (e) => {
   clearMarks(); drag.to = null; drag.before = null;
   const zone = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-zone]'); if (!zone) return;
   drag.to = zone.dataset.zone;
-  const list = zone.classList.contains('list') ? zone : zone.closest('.col')?.querySelector('.list');
   if (zone.classList.contains('list')) {
-    const rows = [...zone.querySelectorAll('.row:not(.dragging):not(.draft)')]; let k = rows.length;
-    for (let i = 0; i < rows.length; i++) { const b = rows[i].getBoundingClientRect(); if (e.clientY < b.top + b.height / 2) { k = i; break; } }
+    const rows = [...zone.querySelectorAll('.row:not(.dragging):not(.draft)')];
+    const over = document.elementFromPoint(e.clientX, e.clientY)?.closest('.row:not(.dragging):not(.draft)');
     if (!rows.length) zone.classList.add('drop-empty');
-    else if (k < rows.length) { rows[k].classList.add('drop-before'); drag.before = rows[k].dataset.id; } else rows[rows.length - 1].classList.add('drop-after');
+    else if (over && zone.contains(over)) {
+      const bb = over.getBoundingClientRect();
+      if (e.clientY < bb.top + bb.height / 2) { over.classList.add('drop-before'); drag.before = over.dataset.id; }
+      else { const nx = rows[rows.indexOf(over) + 1]; if (nx) { nx.classList.add('drop-before'); drag.before = nx.dataset.id; } else over.classList.add('drop-after'); }
+    } else rows[rows.length - 1].classList.add('drop-after');
   } else zone.classList.add('zone-hot');
 });
 function endDrag(cancel, e) {
